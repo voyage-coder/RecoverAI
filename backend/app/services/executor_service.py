@@ -17,8 +17,11 @@ from app.schema import (
     CommunicationDirection,
     ActorType,
     CaseStatus,
+    RecoveryResultStatus,
 )
-from app.services.result_service import update_recovery_result
+from app.services.result_service import (
+    update_recovery_result,
+)
 
 
 # ============================================================
@@ -324,14 +327,12 @@ def execute_action(
                 f"Unsupported strategy: {strategy}"
             )
 
-        # --------------------------------------------------------
-        # DETERMINE RECOVERED AMOUNT
-        # --------------------------------------------------------
-
-        recovered_amount = 0
-
         # ----------------------------------------------------
-        # SUCCESSFUL EXECUTION
+        # SUCCESSFUL ACTION EXECUTION
+        #
+        # ActionStatus.EXECUTED means the recovery action
+        # itself ran successfully. It does NOT necessarily
+        # mean the payment was recovered.
         # ----------------------------------------------------
 
         action.status = ActionStatus.EXECUTED
@@ -340,16 +341,73 @@ def execute_action(
 
         action.result_text = result
 
-        # --------------------------------------------------------
-        # UPDATE RECOVERY RESULT
-        # --------------------------------------------------------
+        # Flush so Recovery Loop does not treat this action
+        # as still PENDING / PROCESSING.
+        db.flush()
 
-        update_recovery_result(
-            db=db,
-            case=case,
-            action=action,
-            recovered_amount=recovered_amount,
-        )
+        # ----------------------------------------------------
+        # Terminal strategies do not continue the recovery
+        # result / loop path.
+        # ----------------------------------------------------
+
+        if strategy not in [
+            StrategyType.HUMAN_ESCALATION,
+            StrategyType.STOP_RECOVERY,
+        ]:
+
+            # ------------------------------------------------
+            # DETERMINE RECOVERED AMOUNT
+            # ------------------------------------------------
+
+            recovered_amount = 0
+
+            if case.status == CaseStatus.RECOVERED:
+
+                recovered_amount = (
+                    case.amount_at_risk
+                )
+
+            # ------------------------------------------------
+            # UPDATE RECOVERY RESULT
+            # ------------------------------------------------
+
+            recovery_result = update_recovery_result(
+                db=db,
+                case=case,
+                action=action,
+                recovered_amount=recovered_amount,
+            )
+
+            db.flush()
+
+            # ------------------------------------------------
+            # If payment was not recovered, continue via
+            # Recovery Loop:
+            #   ML rank → skip attempted → Safety → next action
+            #
+            # Local import avoids circular import risk with
+            # recovery_loop_service / action_service.
+            # ------------------------------------------------
+
+            if (
+                case.status in [
+                    CaseStatus.ACTIVE,
+                    CaseStatus.IN_PROGRESS,
+                ]
+                and recovery_result.status in [
+                    RecoveryResultStatus.NOT_RECOVERED,
+                    RecoveryResultStatus.PARTIALLY_RECOVERED,
+                ]
+            ):
+
+                from app.services.recovery_loop_service import (
+                    process_recovery_loop,
+                )
+
+                process_recovery_loop(
+                    db=db,
+                    case=case,
+                )
 
         # ----------------------------------------------------
         # Audit log

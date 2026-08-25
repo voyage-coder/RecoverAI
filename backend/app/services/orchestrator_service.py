@@ -18,15 +18,15 @@ from app.services.recovery_service import (
 )
 
 from app.services.diagnosis_service import diagnose_case
-from app.services.strategy_service import create_strategy
 from app.services.action_service import create_recovery_action
 from app.services.recovery_loop_service import process_recovery_loop
 
-
+from app.services.ai.safe_strategy_selector import (
+    select_safe_strategy,
+)
 # ============================================================
 # PROCESS SINGLE CASE
 # ============================================================
-
 def process_case(
     db: Session,
     case: RecoveryCase,
@@ -38,7 +38,9 @@ def process_case(
 
     Diagnosis
         ↓
-    Strategy
+    ML Strategy Ranking
+        ↓
+    Safety Engine
         ↓
     Action
         ↓
@@ -54,7 +56,29 @@ def process_case(
     if case.status in [
         CaseStatus.RECOVERED,
         CaseStatus.CLOSED,
+        CaseStatus.ESCALATED,
     ]:
+        return case
+
+    # --------------------------------------------------------
+    # If an action is already pending / processing, do not
+    # re-run ML selection. The executor owns that action.
+    # --------------------------------------------------------
+
+    existing_action = db.scalar(
+        select(RecoveryAction).where(
+            RecoveryAction.case_id == case.id,
+            RecoveryAction.status.in_([
+                ActionStatus.PENDING,
+                ActionStatus.PROCESSING,
+            ]),
+        )
+        .order_by(
+            RecoveryAction.created_at.desc()
+        )
+    )
+
+    if existing_action:
         return case
 
     # --------------------------------------------------------
@@ -69,61 +93,145 @@ def process_case(
     db.flush()
 
     # --------------------------------------------------------
-    # STEP 2 — GET / CREATE STRATEGY
+    # STEP 2 — ML STRATEGY + SAFETY
+    # --------------------------------------------------------
+
+    selection = select_safe_strategy(
+        db=db,
+        case=case,
+    )
+
+    # --------------------------------------------------------
+    # No safe strategy available
+    # --------------------------------------------------------
+
+    if not selection or not selection["strategy"]:
+
+        case.status = CaseStatus.ESCALATED
+
+        case.current_step = (
+            "No Safe Recovery Strategy"
+        )
+
+        db.add(case)
+
+        return case
+
+    # --------------------------------------------------------
+    # Selected safe strategy
+    # --------------------------------------------------------
+
+    selected_strategy = selection["strategy"]
+
+    probability = selection["probability"]
+
+    safety_reason = selection["safety_reason"]
+
+    # --------------------------------------------------------
+    # STEP 3 — CREATE / REUSE STRATEGY RECORD
     # --------------------------------------------------------
 
     strategy = db.scalar(
         select(RecoveryStrategy).where(
             RecoveryStrategy.case_id == case.id,
-            RecoveryStrategy.is_selected.is_(True),
+            RecoveryStrategy.strategy_type
+            == selected_strategy,
         )
         .order_by(
             RecoveryStrategy.created_at.desc()
         )
     )
 
+    # --------------------------------------------------------
+    # Create strategy record if necessary
+    # --------------------------------------------------------
+
     if not strategy:
 
-        strategy = create_strategy(
-            db=db,
-            case=case,
+        strategy = RecoveryStrategy(
+            id=str(uuid4()),
+
+            case_id=case.id,
+
+            strategy_type=selected_strategy,
+
+            rationale=(
+                f"ML model predicted "
+                f"{probability:.2f}% recovery probability. "
+                f"Safety Engine approved the strategy. "
+                f"{safety_reason}"
+            ),
+
+            expected_probability=round(
+                probability
+            ),
+
+            stopping_rules=(
+                "Stop recovery if payment is successfully "
+                "recovered or safety policy blocks further "
+                "attempts."
+            ),
+
+            is_selected=True,
         )
 
-        db.flush()
+        db.add(strategy)
+
+    else:
+
+        strategy.is_selected = True
 
     # --------------------------------------------------------
-    # STEP 3 — CHECK FOR EXISTING PENDING ACTION
+    # Deselect other strategies
     # --------------------------------------------------------
 
-    action = db.scalar(
-        select(RecoveryAction).where(
-            RecoveryAction.case_id == case.id,
-            RecoveryAction.status.in_([
-                ActionStatus.PENDING,
-                ActionStatus.PROCESSING,
-            ]),
+    other_strategies = db.scalars(
+        select(RecoveryStrategy).where(
+            RecoveryStrategy.case_id == case.id,
+            RecoveryStrategy.id != strategy.id,
+            RecoveryStrategy.is_selected.is_(True),
         )
-        .order_by(
-            RecoveryAction.created_at.desc()
-        )
+    ).all()
+
+    for other in other_strategies:
+
+        other.is_selected = False
+
+    # --------------------------------------------------------
+    # STEP 4 — UPDATE CASE
+    # --------------------------------------------------------
+
+    case.selected_strategy = selected_strategy
+
+    case.recovery_probability = round(
+        probability
     )
 
+    case.current_step = (
+        "ML Strategy Selected"
+    )
+
+    db.add(case)
+
+    db.flush()
+
     # --------------------------------------------------------
-    # STEP 4 — CREATE ACTION IF REQUIRED
+    # STEP 5 — CREATE ACTION
     # --------------------------------------------------------
+    #
+    # Orchestrator prepares the action only.
+    # It does not execute it.
+    #
 
-    if not action:
+    create_recovery_action(
+        db=db,
+        case=case,
+        strategy=strategy,
+    )
 
-        action = create_recovery_action(
-            db=db,
-            case=case,
-            strategy=strategy,
-        )
-
-        db.flush()
+    db.flush()
 
     return case
-
 
 # ============================================================
 # CONTINUE RECOVERY
