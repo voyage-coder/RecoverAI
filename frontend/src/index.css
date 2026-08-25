@@ -1,0 +1,97 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --bg: #eef1f4;
+  --panel: #ffffff;
+  --ink: #12141a;
+  --mute: #6b7280;
+  --line: rgba(18, 20, 26, 0.08);
+  --pine: #0e6b5c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse 90% 55% at 8% -10%, rgba(14, 107, 92, 0.07), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 100% 0%, rgba(61, 107, 140, 0.06), transparent 50%),
+    linear-gradient(180deg, #f6f7f9 0%, #eef1f4 100%);
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+::selection {
+  background: rgba(14, 107, 92, 0.18);
+  color: #0a3d35;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c5cad3;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+input,
+select,
+button,
+textarea {
+  font: inherit;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-panel border border-ink/10 bg-white shadow-panel;
+  }
+
+  .page-enter {
+    @apply animate-rise;
+  }
+
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-faint;
+  }
+
+  .page-title {
+    @apply mt-2 font-display text-[1.85rem] font-medium tracking-[-0.02em] text-ink sm:text-[2.1rem];
+  }
+
+  .field {
+    @apply w-full rounded-xl border border-ink/10 bg-mist-soft px-3.5 py-2.5 text-sm text-ink outline-none transition placeholder:text-ink-faint focus:border-pine/40 focus:bg-white focus:ring-4 focus:ring-pine/10;
+  }
+}
