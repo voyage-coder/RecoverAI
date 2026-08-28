@@ -22,6 +22,13 @@ from app.schema import (
 from app.services.result_service import (
     update_recovery_result,
 )
+from app.services.ai.llm_service import (
+    generate_customer_message,
+)
+from app.services.payment_gateway_service import (
+    attempt_payment_retry,
+    create_payment_link,
+)
 
 
 # ============================================================
@@ -34,9 +41,13 @@ def execute_retry(
     action: RecoveryAction,
 ):
     """
-    Simulate a payment retry.
+    Execute a payment retry through the payment gateway service.
 
-    This does NOT call a real payment gateway.
+    Razorpay TEST MODE is used when credentials exist.
+    Otherwise SIMULATED_GATEWAY is used.
+
+    ActionStatus.EXECUTED (set by caller) means this action ran.
+    It does NOT imply the payment was recovered.
     """
 
     payment = db.scalar(
@@ -50,17 +61,27 @@ def execute_retry(
             "Payment associated with recovery case was not found."
         )
 
-    # --------------------------------------------------------
-    # Simulated retry result
-    # --------------------------------------------------------
-
-    # For now, keep the retry failed.
-    # Later we will create realistic recovery scenarios.
-    retry_success = False
-
     attempt_number = (
         case.retry_count + 1
     )
+
+    gateway_result = attempt_payment_retry(
+        amount=payment.amount,
+        currency=payment.currency or "INR",
+        receipt=f"rc_{case.case_number}_{attempt_number}",
+        notes={
+            "case_number": case.case_number,
+            "strategy": (
+                action.action_type.value
+                if hasattr(action.action_type, "value")
+                else str(action.action_type)
+            ),
+        },
+        failure_code=payment.failure_code,
+        failure_reason=payment.failure_reason,
+    )
+
+    retry_success = gateway_result.success
 
     if retry_success:
 
@@ -70,7 +91,8 @@ def execute_retry(
         error_description = None
 
         payment.status = "RECOVERED"
-        payment.order.status = "RECOVERED"
+        if payment.order is not None:
+            payment.order.status = "RECOVERED"
 
         case.status = CaseStatus.RECOVERED
         case.current_step = "Payment Recovered"
@@ -79,8 +101,11 @@ def execute_retry(
 
         attempt_status = "FAILED"
 
-        error_code = payment.failure_code
-        error_description = payment.failure_reason
+        error_code = gateway_result.error_code or payment.failure_code
+        error_description = (
+            gateway_result.error_description
+            or payment.failure_reason
+        )
 
         case.retry_count += 1
         case.current_step = "Retry Executed"
@@ -102,12 +127,12 @@ def execute_retry(
 
         error_description=error_description,
 
-        error_source="SIMULATED_GATEWAY",
+        error_source=gateway_result.error_source,
 
         gateway_response={
-            "mode": "TEST",
-            "simulated": True,
+            **(gateway_result.gateway_response or {}),
             "executor": "RecoverAI",
+            "gateway_mode": gateway_result.mode,
         },
 
         created_at=datetime.utcnow(),
@@ -133,12 +158,23 @@ def execute_communication(
 ):
     """
     Simulate sending a customer communication.
+
+    Flow:
+
+    Approved RecoveryAction
+        ↓
+    LLM drafts customer-facing copy
+        ↓
+    Communication record created
+
+    Gemini is used only for message text.
+    Strategy selection and safety already happened upstream.
     """
 
     strategy = action.action_type
 
     # --------------------------------------------------------
-    # Determine channel
+    # Determine channel from the approved strategy
     # --------------------------------------------------------
 
     if strategy == StrategyType.SEND_EMAIL_REMINDER:
@@ -155,14 +191,77 @@ def execute_communication(
         channel = CommunicationChannel.EMAIL
 
     # --------------------------------------------------------
-    # Message
+    # LLM message generation (communication strategies only)
+    #
+    # On Gemini failure, llm_service returns a safe fallback.
+    # The executor must never crash because of LLM issues.
     # --------------------------------------------------------
 
-    content = (
-        "We were unable to complete your recent payment. "
-        "Please try again using the payment link or "
-        "an alternative payment method."
-    )
+    try:
+
+        llm_result = generate_customer_message(
+            case=case,
+            strategy=strategy,
+        )
+
+        content = llm_result.message
+
+    except Exception:
+
+        content = (
+            "We were unable to complete your recent payment. "
+            "Please try again using the payment link or "
+            "an alternative payment method."
+        )
+
+    # --------------------------------------------------------
+    # SEND_PAYMENT_LINK — Razorpay owns the URL
+    # Gemini only provides surrounding copy.
+    # --------------------------------------------------------
+
+    if strategy == StrategyType.SEND_PAYMENT_LINK:
+
+        payment = db.scalar(
+            select(Payment).where(
+                Payment.id == case.payment_id
+            )
+        )
+
+        customer = getattr(case, "customer", None)
+
+        link_result = create_payment_link(
+            amount=(
+                payment.amount
+                if payment is not None
+                else case.amount_at_risk
+            ),
+            currency=(
+                payment.currency
+                if payment is not None
+                else "INR"
+            ),
+            description=(
+                f"RecoverAI payment recovery for {case.case_number}"
+            ),
+            customer_name=getattr(customer, "name", None),
+            customer_email=getattr(customer, "email", None),
+            customer_contact=getattr(customer, "phone", None),
+            notes={
+                "case_number": case.case_number,
+            },
+        )
+
+        if link_result.success and link_result.payment_link_url:
+            content = (
+                f"{content}\n\n"
+                f"Payment link: {link_result.payment_link_url}"
+            )
+        elif link_result.error_description:
+            content = (
+                f"{content}\n\n"
+                "A payment link could not be generated right now. "
+                "Please reply to this message for assistance."
+            )
 
     # --------------------------------------------------------
     # Create communication

@@ -1,7 +1,11 @@
 import { Link } from "react-router-dom";
 import StatusBadge from "./StatusBadge";
 import { EmptyState } from "./LoadingState";
-import { formatRelativeTime, formatDateTime } from "../utils/format";
+import {
+  formatRelativeTime,
+  formatDateTime,
+  formatINR,
+} from "../utils/format";
 import { toLabel } from "../utils/labels";
 
 function ActivityFeed({ items = [], showEmpty = true }) {
@@ -40,6 +44,11 @@ function ActivityFeed({ items = [], showEmpty = true }) {
               <p className="mt-1.5 text-xs text-ink-mute">
                 {toLabel(item.current_step)}
               </p>
+              {item.amount_at_risk != null && (
+                <p className="mt-1 font-mono text-[11px] text-ink-faint">
+                  At risk {formatINR(item.amount_at_risk)}
+                </p>
+              )}
             </div>
 
             <div className="shrink-0 text-left sm:text-right">

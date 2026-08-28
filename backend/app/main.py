@@ -6,6 +6,8 @@ from app.routes.recovery_routes import router as recovery_router
 from app.routes.dashboard_routes import (
     router as dashboard_router,
 )
+from app.routes.webhook_routes import router as webhook_router
+
 app = FastAPI(
     title="RecoverAI API",
     description="AI-powered revenue recovery platform",
@@ -18,6 +20,10 @@ app.include_router(
 
 app.include_router(
     dashboard_router
+)
+
+app.include_router(
+    webhook_router
 )
 
 

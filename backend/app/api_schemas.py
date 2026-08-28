@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict
@@ -216,3 +216,52 @@ class RecoveryTimelineResponse(BaseModel):
     audit_logs: list[
         AuditLogResponse
     ]
+
+
+# ============================================================
+# PAYMENT DETAILS (read-only)
+# ============================================================
+
+class PaymentDetailsPaymentResponse(BaseModel):
+
+    payment_id: str
+    amount: int
+    currency: str
+    payment_type: str
+    status: str
+    failure_code: Optional[str] = None
+    failure_reason: Optional[str] = None
+    created_at: datetime
+
+
+class PaymentAttemptDetailsResponse(BaseModel):
+
+    id: str
+    attempt_number: int
+    status: str
+    error_code: Optional[str] = None
+    error_description: Optional[str] = None
+    error_source: Optional[str] = None
+    created_at: datetime
+    gateway: dict
+
+
+class GatewaySummaryResponse(BaseModel):
+
+    mode: Optional[str] = None
+    order_id: Optional[str] = None
+    razorpay_payment_id: Optional[str] = None
+    status: Optional[str] = None
+    awaiting_webhook: Optional[bool] = None
+    attempt_number: Optional[int] = None
+    error_code: Optional[str] = None
+    error_source: Optional[str] = None
+
+
+class CasePaymentDetailsResponse(BaseModel):
+
+    case_id: str
+    case_number: str
+    payment: PaymentDetailsPaymentResponse
+    attempts: list[PaymentAttemptDetailsResponse]
+    gateway_summary: GatewaySummaryResponse

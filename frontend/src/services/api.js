@@ -44,6 +44,13 @@ export const getCaseTimeline = async (caseId) => {
   return response.data;
 };
 
+export const getCasePaymentDetails = async (caseId) => {
+  const response = await api.get(
+    `/api/recovery/cases/${caseId}/payment-details`
+  );
+  return response.data;
+};
+
 export const runPaymentRecovery = async (paymentId) => {
   const response = await api.post(`/api/recovery/payments/${paymentId}/run`);
   return response.data;

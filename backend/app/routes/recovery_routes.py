@@ -18,10 +18,14 @@ from app.api_schemas import (
     RecoveryCaseResponse,
     RecoveryCaseListResponse,
     RecoveryTimelineResponse,
+    CasePaymentDetailsResponse,
 )
 
 from app.services.orchestrator_service import (
     process_payment,
+)
+from app.services.payment_details_service import (
+    get_case_payment_details,
 )
 
 
@@ -162,6 +166,41 @@ def get_case_timeline(
         "result": result,
         "audit_logs": audit_logs,
     }
+
+
+# ============================================================
+# CASE PAYMENT DETAILS (read-only)
+# ============================================================
+
+@router.get(
+    "/cases/{case_id}/payment-details",
+    response_model=CasePaymentDetailsResponse,
+)
+def get_payment_details_for_case(
+    case_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Read-only payment + sanitized gateway attempt history for a case.
+    """
+
+    try:
+        payload = get_case_payment_details(db, case_id)
+    except ValueError as exc:
+        if str(exc) == "payment_not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Payment associated with recovery case was not found.",
+            ) from exc
+        raise
+
+    if payload is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Recovery case not found.",
+        )
+
+    return payload
 
 
 # ============================================================
