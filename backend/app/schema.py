@@ -578,6 +578,12 @@ class RecoveryCase(Base):
         cascade="all, delete-orphan",
     )
 
+    customer_recovery_links = relationship(
+        "CustomerRecoveryLink",
+        back_populates="recovery_case",
+        cascade="all, delete-orphan",
+    )
+
     communications = relationship(
         "Communication",
         back_populates="recovery_case",
@@ -1015,4 +1021,72 @@ class AuditLog(Base):
     recovery_case = relationship(
         "RecoveryCase",
         back_populates="audit_logs",
+    )
+
+
+# ============================================================
+# CUSTOMER RECOVERY LINK (hashed token)
+# ============================================================
+
+class CustomerRecoveryLink(Base):
+    """
+    Secure customer recovery access.
+
+    Only the SHA-256 hash of the token is stored.
+    The raw token is returned once at creation time.
+    """
+
+    __tablename__ = "customer_recovery_links"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid4()),
+    )
+
+    case_id: Mapped[str] = mapped_column(
+        ForeignKey(
+            "recovery_cases.id",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+        index=True,
+    )
+
+    token_hash: Mapped[str] = mapped_column(
+        String(64),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    first_opened_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    last_opened_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    revoked_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    recovery_case = relationship(
+        "RecoveryCase",
+        back_populates="customer_recovery_links",
     )

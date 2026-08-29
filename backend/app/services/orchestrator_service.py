@@ -5,7 +5,6 @@ from uuid import uuid4
 from app.schema import (
     Payment,
     RecoveryCase,
-    RecoveryStrategy,
     RecoveryAction,
     RecoveryResult,
     CaseStatus,
@@ -23,6 +22,9 @@ from app.services.recovery_loop_service import process_recovery_loop
 
 from app.services.ai.safe_strategy_selector import (
     select_safe_strategy,
+)
+from app.services.strategy_evaluation_service import (
+    persist_strategy_evaluation,
 )
 # ============================================================
 # PROCESS SINGLE CASE
@@ -102,6 +104,16 @@ def process_case(
     )
 
     # --------------------------------------------------------
+    # Persist full ML + Safety evaluation (selected + rejected)
+    # --------------------------------------------------------
+
+    strategy = persist_strategy_evaluation(
+        db=db,
+        case=case,
+        selection=selection,
+    )
+
+    # --------------------------------------------------------
     # No safe strategy available
     # --------------------------------------------------------
 
@@ -125,77 +137,10 @@ def process_case(
 
     probability = selection["probability"]
 
-    safety_reason = selection["safety_reason"]
-
-    # --------------------------------------------------------
-    # STEP 3 — CREATE / REUSE STRATEGY RECORD
-    # --------------------------------------------------------
-
-    strategy = db.scalar(
-        select(RecoveryStrategy).where(
-            RecoveryStrategy.case_id == case.id,
-            RecoveryStrategy.strategy_type
-            == selected_strategy,
+    if strategy is None:
+        raise RuntimeError(
+            "Selected strategy was not persisted after evaluation."
         )
-        .order_by(
-            RecoveryStrategy.created_at.desc()
-        )
-    )
-
-    # --------------------------------------------------------
-    # Create strategy record if necessary
-    # --------------------------------------------------------
-
-    if not strategy:
-
-        strategy = RecoveryStrategy(
-            id=str(uuid4()),
-
-            case_id=case.id,
-
-            strategy_type=selected_strategy,
-
-            rationale=(
-                f"ML model predicted "
-                f"{probability:.2f}% recovery probability. "
-                f"Safety Engine approved the strategy. "
-                f"{safety_reason}"
-            ),
-
-            expected_probability=round(
-                probability
-            ),
-
-            stopping_rules=(
-                "Stop recovery if payment is successfully "
-                "recovered or safety policy blocks further "
-                "attempts."
-            ),
-
-            is_selected=True,
-        )
-
-        db.add(strategy)
-
-    else:
-
-        strategy.is_selected = True
-
-    # --------------------------------------------------------
-    # Deselect other strategies
-    # --------------------------------------------------------
-
-    other_strategies = db.scalars(
-        select(RecoveryStrategy).where(
-            RecoveryStrategy.case_id == case.id,
-            RecoveryStrategy.id != strategy.id,
-            RecoveryStrategy.is_selected.is_(True),
-        )
-    ).all()
-
-    for other in other_strategies:
-
-        other.is_selected = False
 
     # --------------------------------------------------------
     # STEP 4 — UPDATE CASE

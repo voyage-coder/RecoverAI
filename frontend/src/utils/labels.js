@@ -12,6 +12,8 @@ const LABEL_MAP = {
   EXPIRED_CARD: "Expired Card",
   GATEWAY_TIMEOUT: "Gateway Timeout",
   TECHNICAL_FAILURE: "Technical Failure",
+  NETWORK_ERROR: "Network Error",
+  BANK_SERVER_ERROR: "Bank Server Error",
   AUTHENTICATION_FAILED: "Authentication Failed",
 
   // Strategies

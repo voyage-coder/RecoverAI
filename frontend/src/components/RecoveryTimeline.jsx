@@ -6,16 +6,17 @@ import { toLabel } from "../utils/labels";
 const FLOW_STAGES = [
   "Payment Failed",
   "Diagnosis",
+  "AI Prediction",
   "Strategy",
   "Safety",
-  "Action",
-  "Communication",
-  "Payment Recovery",
-  "Final Result",
+  "Merchant Execution",
+  "Customer Payment",
+  "Webhook Verification",
+  "Revenue Recovered",
 ];
 
 function stageForEvent(event) {
-  return event.stage || "Action";
+  return event.stage || "Merchant Execution";
 }
 
 function buildTimelineEvents(timeline) {
@@ -36,11 +37,12 @@ function buildTimelineEvents(timeline) {
       id: `case-created-${recoveryCase.id}`,
       type: "case",
       stage: "Payment Failed",
-      title: "Payment Failed",
+      title: "Payment failed",
       description: recoveryCase.failure_reason || "Recovery case opened",
       status: recoveryCase.status,
       timestamp: recoveryCase.created_at,
       meta: toLabel(recoveryCase.failure_category),
+      source: "recovery_cases",
     });
 
     if (recoveryCase.root_cause) {
@@ -53,6 +55,24 @@ function buildTimelineEvents(timeline) {
         status: null,
         timestamp: recoveryCase.created_at,
         meta: toLabel(recoveryCase.failure_category),
+        source: "recovery_cases.root_cause",
+      });
+    }
+
+    if (recoveryCase.recovery_probability != null) {
+      events.push({
+        id: `prediction-${recoveryCase.id}`,
+        type: "prediction",
+        stage: "AI Prediction",
+        title: "Model prediction",
+        description: `Recovery probability ${recoveryCase.recovery_probability}% — prediction, not a guarantee`,
+        status: null,
+        timestamp: recoveryCase.created_at,
+        meta:
+          recoveryCase.ai_confidence != null
+            ? `Confidence ${recoveryCase.ai_confidence}%`
+            : null,
+        source: "recovery_cases.recovery_probability",
       });
     }
   }
@@ -62,11 +82,12 @@ function buildTimelineEvents(timeline) {
       id: `strategy-${strategy.id}`,
       type: "strategy",
       stage: "Strategy",
-      title: strategy.is_selected ? "Strategy Selected" : "Strategy Evaluated",
+      title: strategy.is_selected ? "Strategy selected" : "Strategy evaluated",
       description: strategy.rationale,
       status: strategy.is_selected ? "EXECUTED" : "PENDING",
       timestamp: strategy.created_at,
       meta: toLabel(strategy.strategy_type),
+      source: "recovery_strategies",
     });
   });
 
@@ -79,50 +100,53 @@ function buildTimelineEvents(timeline) {
     events.push({
       id: `audit-${log.id}`,
       type: isSafety ? "safety" : "audit",
-      stage: isSafety ? "Safety" : "Action",
-      title: isSafety ? "Safety Check" : toLabel(log.action_type),
-      description: log.details,
+      stage: isSafety ? "Safety" : "Merchant Execution",
+      title: isSafety ? "Safety check" : toLabel(log.action_type),
+      description:
+        typeof log.details === "string"
+          ? log.details
+          : JSON.stringify(log.details),
       status: null,
       timestamp: log.timestamp,
       meta: toLabel(log.actor),
+      source: "audit_logs",
     });
   });
 
   actions.forEach((action) => {
     const actionLabel = toLabel(action.action_type);
-    const isRetry = String(action.action_type || "").includes("RETRY");
-    const isComm =
-      String(action.action_type || "").includes("SEND_") ||
-      String(action.action_type || "").includes("OFFER_");
+    const status = String(action.status || "").toUpperCase();
+    const stage =
+      status === "BLOCKED" ? "Safety" : "Merchant Execution";
 
     events.push({
       id: `action-${action.id}`,
       type: "action",
-      stage: isRetry ? "Payment Recovery" : isComm ? "Communication" : "Action",
-      title: "Action Created",
+      stage,
+      title:
+        status === "BLOCKED"
+          ? "Action blocked by Safety Engine"
+          : "Recovery action created",
       description:
         action.result_text ||
         `${actionLabel} · Attempt ${action.attempt_number}`,
       status: action.status,
       timestamp: action.created_at,
       meta: actionLabel,
+      source: "recovery_actions",
     });
 
     if (action.executed_at) {
       events.push({
         id: `action-executed-${action.id}`,
         type: "action",
-        stage: isRetry
-          ? "Payment Recovery"
-          : isComm
-            ? "Communication"
-            : "Action",
-        title: "Action Executed",
-        description:
-          action.result_text || `${actionLabel} completed`,
+        stage: "Merchant Execution",
+        title: "Merchant execution",
+        description: action.result_text || `${actionLabel} completed`,
         status: action.status,
         timestamp: action.executed_at,
         meta: actionLabel,
+        source: "recovery_actions.executed_at",
       });
     }
   });
@@ -131,33 +155,46 @@ function buildTimelineEvents(timeline) {
     events.push({
       id: `comm-${comm.id}`,
       type: "communication",
-      stage: "Communication",
-      title: "Customer Communication",
+      stage: "Customer Payment",
+      title: "Customer communication",
       description: comm.content,
       status: comm.status,
       timestamp: comm.sent_at,
       meta: `${toLabel(comm.channel)} · ${toLabel(comm.direction)}`,
+      source: "communications",
     });
   });
 
   if (result) {
     const status = String(result.status || "").toUpperCase();
-    const isFinal = [
-      "FULLY_RECOVERED",
-      "PARTIALLY_RECOVERED",
-      "NOT_RECOVERED",
-    ].includes(status);
+    const recovered = status === "FULLY_RECOVERED";
 
     events.push({
       id: `result-${result.id}`,
       type: "result",
-      stage: isFinal ? "Final Result" : "Payment Recovery",
-      title: isFinal ? "Final Result" : "Recovery Result Updated",
+      stage: recovered ? "Revenue Recovered" : "Webhook Verification",
+      title: recovered ? "Revenue recovered" : "Recovery result recorded",
       description: `Recovered ${formatINR(result.recovered_amount)} of ${formatINR(result.original_amount)}`,
       status: result.status,
       timestamp: result.recovered_at || result.created_at,
       meta: toLabel(result.recovery_method),
+      source: "recovery_results",
     });
+
+    if (recovered && result.recovered_at) {
+      events.push({
+        id: `webhook-${result.id}`,
+        type: "webhook",
+        stage: "Webhook Verification",
+        title: "Webhook verification",
+        description:
+          "Payment confirmation applied from verified provider webhook",
+        status: "VERIFIED",
+        timestamp: result.recovered_at,
+        meta: formatINR(result.recovered_amount),
+        source: "recovery_results.recovered_at",
+      });
+    }
   }
 
   return events
@@ -168,11 +205,13 @@ function buildTimelineEvents(timeline) {
 const TYPE_STYLES = {
   case: "bg-clay text-white",
   diagnosis: "bg-skyline text-white",
+  prediction: "bg-skyline text-white",
   strategy: "bg-skyline text-white",
   safety: "bg-sand text-white",
   action: "bg-sand text-white",
   communication: "bg-ink-soft text-white",
   result: "bg-pine text-white",
+  webhook: "bg-pine text-white",
   audit: "bg-mist-deep text-ink-soft",
 };
 
@@ -225,6 +264,11 @@ function RecoveryTimeline({ timeline }) {
                   {event.meta && event.meta !== "—" && (
                     <p className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em] text-ink-faint">
                       {event.meta}
+                    </p>
+                  )}
+                  {event.source && (
+                    <p className="mt-1 font-mono text-[10px] text-ink-faint">
+                      source: {event.source}
                     </p>
                   )}
                 </div>

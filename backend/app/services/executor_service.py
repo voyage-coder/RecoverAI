@@ -353,6 +353,17 @@ def execute_action(
         )
 
     # --------------------------------------------------------
+    # Idempotency: never re-run a terminal action
+    # --------------------------------------------------------
+
+    if action.status in [
+        ActionStatus.EXECUTED,
+        ActionStatus.FAILED,
+        ActionStatus.BLOCKED,
+    ]:
+        raise ValueError("action_already_terminal")
+
+    # --------------------------------------------------------
     # Mark processing
     # --------------------------------------------------------
 

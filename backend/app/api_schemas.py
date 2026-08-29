@@ -1,7 +1,7 @@
 ﻿from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ============================================================
@@ -58,7 +58,7 @@ class RecoveryStrategyResponse(BaseModel):
     strategy_type: str
     rationale: str
 
-    expected_probability: int
+    expected_probability: Optional[int] = None
 
     stopping_rules: Optional[str] = None
 
@@ -162,6 +162,89 @@ class AuditLogResponse(BaseModel):
 
 
 # ============================================================
+# DECISION EXPLANATION (Phase 13 — derived, non-mutating)
+# ============================================================
+
+class DecisionExplanationText(BaseModel):
+
+    summary: str
+    factors: list[str]
+    strategy_reason: Optional[str] = None
+    safety_reason: Optional[str] = None
+
+
+class DecisionPredictionBlock(BaseModel):
+
+    recovery_probability: Optional[int] = None
+    ai_confidence: Optional[int] = None
+    label: str
+    band: Optional[str] = None
+    disclaimer: str
+
+
+class StrategyComparisonItem(BaseModel):
+
+    strategy: Optional[str] = None
+    selected: bool = False
+    available: bool = True
+    expected_probability: Optional[int] = None
+    reason: Optional[str] = None
+    role: Optional[str] = None
+    safety_allowed: Optional[bool] = None
+    is_ranked_score: bool = False
+
+
+class StrategyComparisonBlock(BaseModel):
+
+    ranked_probabilities_supported: bool
+    note: str
+    strategies: list[StrategyComparisonItem]
+
+
+class DecisionSafetyBlock(BaseModel):
+
+    decision: str
+    reason: Optional[str] = None
+    execution_status: str
+    escalation_required: bool
+    stopping_rules_applied: bool
+    stopping_rules_text: Optional[str] = None
+    blocked_result_text: Optional[str] = None
+
+
+class DecisionOutcomeBlock(BaseModel):
+
+    case_status: Optional[str] = None
+    result_status: Optional[str] = None
+    recovered_amount: Optional[int] = None
+    original_amount: Optional[int] = None
+    recovery_method: Optional[str] = None
+    recovered_at: Optional[str] = None
+    source: str
+
+
+class CaseDecisionExplanationResponse(BaseModel):
+
+    case_id: str
+    case_number: str
+    decision_state: str
+    failure_category: Optional[str] = None
+    failure_reason: Optional[str] = None
+    root_cause: Optional[str] = None
+    recovery_probability: Optional[int] = None
+    ai_confidence: Optional[int] = None
+    risk_level: Optional[str] = None
+    selected_strategy: Optional[str] = None
+    current_step: Optional[str] = None
+    decision_explanation: DecisionExplanationText
+    prediction: DecisionPredictionBlock
+    strategy_comparison: StrategyComparisonBlock
+    safety: DecisionSafetyBlock
+    outcome: DecisionOutcomeBlock
+    fabricated: bool = False
+
+
+# ============================================================
 # CASE LIST
 # ============================================================
 
@@ -178,6 +261,7 @@ class RecoveryCaseListResponse(BaseModel):
 
     status: str
     failure_category: str
+    failure_reason: Optional[str] = None
 
     recovery_probability: int
     risk_level: str
@@ -185,6 +269,9 @@ class RecoveryCaseListResponse(BaseModel):
     selected_strategy: Optional[str] = None
 
     current_step: str
+
+    retry_count: int = 0
+    contact_count: int = 0
 
     created_at: datetime
 
@@ -265,3 +352,183 @@ class CasePaymentDetailsResponse(BaseModel):
     payment: PaymentDetailsPaymentResponse
     attempts: list[PaymentAttemptDetailsResponse]
     gateway_summary: GatewaySummaryResponse
+
+
+# ============================================================
+# SIMULATED PAYMENT EVENTS (demo ingestion)
+# ============================================================
+
+class PaymentEventCustomerRequest(BaseModel):
+
+    name: str
+    email: str
+    phone: Optional[str] = None
+
+
+class PaymentEventFailureRequest(BaseModel):
+
+    code: str
+    reason: str
+
+
+class PaymentEventRequest(BaseModel):
+
+    event: str
+    amount: int = Field(gt=0, description="Amount in paise (e.g. 249900 = ₹2499)")
+    currency: str = "INR"
+    customer: PaymentEventCustomerRequest
+    failure: PaymentEventFailureRequest
+    idempotency_key: Optional[str] = None
+
+
+class PaymentEventResponse(BaseModel):
+
+    message: str
+    event: str
+    simulated: bool
+    idempotent: bool
+    payment_id: str
+    order_id: Optional[str] = None
+    case_id: Optional[str] = None
+    case_number: Optional[str] = None
+    case_status: Optional[str] = None
+    payment_status: Optional[str] = None
+    failure_code: Optional[str] = None
+    failure_reason: Optional[str] = None
+
+
+class EventCapabilityItem(BaseModel):
+
+    event: str
+    supported: bool
+    state_mutating: bool
+    ingestion_path: Optional[str] = None
+    note: str
+
+
+class ProviderEventCapabilitiesResponse(BaseModel):
+
+    environment: str
+    label: str
+    capabilities: list[EventCapabilityItem]
+
+
+class RecentProviderEventItem(BaseModel):
+
+    event: str
+    timestamp: datetime
+    amount: int
+    currency: str
+    customer_ref: str
+    payment_id: str
+    case_id: Optional[str] = None
+    case_number: Optional[str] = None
+    case_status: Optional[str] = None
+    payment_status: Optional[str] = None
+    failure_code: Optional[str] = None
+    failure_reason: Optional[str] = None
+    idempotency_state: str
+
+
+class RecentProviderEventsResponse(BaseModel):
+
+    events: list[RecentProviderEventItem]
+    source: str
+    note: str
+
+
+class UnsupportedProviderEventRequest(BaseModel):
+
+    event: str
+    payment_id: Optional[str] = None
+    amount: Optional[int] = None
+    currency: Optional[str] = "INR"
+
+
+class UnsupportedProviderEventResponse(BaseModel):
+
+    message: str
+    event: str
+    simulated: bool
+    simulation_only: bool
+    mutates_state: bool
+    supported: bool
+    required: str
+
+
+# ============================================================
+# RECOVERY OPERATIONS (operator / demo)
+# ============================================================
+
+class ExecuteRecoveryActionResponse(BaseModel):
+
+    message: str
+    case_id: str
+    case_number: str
+    case_status: str
+    action_id: Optional[str] = None
+    action_type: Optional[str] = None
+    action_status: Optional[str] = None
+    result_text: Optional[str] = None
+    blocked: bool = False
+
+
+class CheckoutConfigResponse(BaseModel):
+
+    available: bool
+    test_mode: bool
+    demo_label: str
+    mode: Optional[str] = None
+    razorpay_key_id: Optional[str] = None
+    order_id: Optional[str] = None
+    amount: Optional[int] = None
+    currency: Optional[str] = None
+    awaiting_webhook: Optional[bool] = None
+    payment_link_url: Optional[str] = None
+    payment_status: Optional[str] = None
+    case_status: Optional[str] = None
+    message: Optional[str] = None
+
+
+# ============================================================
+# CUSTOMER RECOVERY (merchant + customer-safe)
+# ============================================================
+
+class MerchantCustomerRecoveryLinkResponse(BaseModel):
+
+    status: str
+    has_active_link: bool
+    expires_at: Optional[str] = None
+    created_at: Optional[str] = None
+    first_opened_at: Optional[str] = None
+    case_status: Optional[str] = None
+    amount_at_risk: Optional[int] = None
+    recovery_path: Optional[str] = None
+    token: Optional[str] = None
+    note: Optional[str] = None
+
+
+class CustomerCheckoutSafe(BaseModel):
+
+    available: bool
+    order_id: Optional[str] = None
+    amount: Optional[int] = None
+    currency: Optional[str] = None
+    razorpay_key_id: Optional[str] = None
+    payment_link_url: Optional[str] = None
+    test_mode: bool = True
+
+
+class CustomerRecoveryResponse(BaseModel):
+
+    customer_status: str
+    headline: str
+    message: str
+    amount: int
+    currency: str
+    recovered_amount: Optional[int] = None
+    payment_action_available: bool
+    expires_at: str
+    test_mode: bool = True
+    checkout: CustomerCheckoutSafe
+

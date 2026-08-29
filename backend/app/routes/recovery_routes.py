@@ -19,6 +19,10 @@ from app.api_schemas import (
     RecoveryCaseListResponse,
     RecoveryTimelineResponse,
     CasePaymentDetailsResponse,
+    ExecuteRecoveryActionResponse,
+    CheckoutConfigResponse,
+    MerchantCustomerRecoveryLinkResponse,
+    CaseDecisionExplanationResponse,
 )
 
 from app.services.orchestrator_service import (
@@ -26,6 +30,18 @@ from app.services.orchestrator_service import (
 )
 from app.services.payment_details_service import (
     get_case_payment_details,
+)
+from app.services.recovery_operations_service import (
+    execute_pending_action_for_case,
+    continue_recovery_for_case,
+    get_checkout_config_for_case,
+)
+from app.services.customer_recovery_service import (
+    create_customer_recovery_link,
+    merchant_link_status,
+)
+from app.services.decision_explanation_service import (
+    build_decision_explanation,
 )
 
 
@@ -169,6 +185,45 @@ def get_case_timeline(
 
 
 # ============================================================
+# CASE DECISION EXPLANATION (read-only)
+# ============================================================
+
+@router.get(
+    "/cases/{case_id}/decision",
+    response_model=CaseDecisionExplanationResponse,
+    summary="Recovery decision explanation (derived)",
+)
+def get_case_decision_explanation(
+    case_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Merchant-facing explainability for diagnosis, strategy, safety,
+    prediction vs actual outcome. Read-only — never mutates state.
+    """
+    payment = None
+    case = db.scalar(
+        select(RecoveryCase).where(RecoveryCase.id == case_id)
+    )
+    if case is not None:
+        payment = db.scalar(
+            select(Payment).where(Payment.id == case.payment_id)
+        )
+
+    payload = build_decision_explanation(
+        db,
+        case_id,
+        payment_status=payment.status if payment else None,
+    )
+    if payload is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Recovery case not found.",
+        )
+    return payload
+
+
+# ============================================================
 # CASE PAYMENT DETAILS (read-only)
 # ============================================================
 
@@ -252,3 +307,186 @@ def run_payment_recovery(
         "case_number": case.case_number,
         "status": case.status,
     }
+
+
+# ============================================================
+# OPERATOR: EXECUTE PENDING RECOVERY ACTION
+# ============================================================
+
+@router.post(
+    "/cases/{case_id}/execute-pending-action",
+    response_model=ExecuteRecoveryActionResponse,
+    summary="Execute pending recovery action",
+    description=(
+        "Runs the existing executor for the case's pending RecoveryAction. "
+        "Safety Engine decisions are not bypassed."
+    ),
+)
+def execute_pending_recovery_action(
+    case_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        result = execute_pending_action_for_case(db, case_id)
+        db.commit()
+        return result
+    except ValueError as exc:
+        db.rollback()
+        code = str(exc)
+        if code == "case_not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Recovery case not found.",
+            ) from exc
+        if code == "case_terminal":
+            raise HTTPException(
+                status_code=400,
+                detail="Case is already closed or recovered.",
+            ) from exc
+        if code == "no_pending_action":
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "No pending recovery action for this case. "
+                    "Use continue-recovery to prepare the next action."
+                ),
+            ) from exc
+        raise HTTPException(status_code=400, detail=code) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+
+# ============================================================
+# OPERATOR: CONTINUE RECOVERY (ML + SAFETY → next action)
+# ============================================================
+
+@router.post(
+    "/cases/{case_id}/continue-recovery",
+    response_model=ExecuteRecoveryActionResponse,
+    summary="Continue recovery pipeline",
+    description=(
+        "Executes a pending action if one exists, otherwise runs the "
+        "recovery loop to prepare the next safe strategy action."
+    ),
+)
+def continue_recovery(
+    case_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        result = continue_recovery_for_case(db, case_id)
+        db.commit()
+        return result
+    except ValueError as exc:
+        db.rollback()
+        code = str(exc)
+        if code == "case_not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Recovery case not found.",
+            ) from exc
+        if code in ("case_terminal", "already_recovered"):
+            raise HTTPException(
+                status_code=400,
+                detail="Case recovery is already complete.",
+            ) from exc
+        if code == "no_action_created":
+            raise HTTPException(
+                status_code=400,
+                detail="No further recovery action could be prepared.",
+            ) from exc
+        raise HTTPException(status_code=400, detail=code) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+
+# ============================================================
+# OPERATOR: RAZORPAY TEST CHECKOUT CONFIG (read-only)
+# ============================================================
+
+@router.get(
+    "/cases/{case_id}/checkout-config",
+    response_model=CheckoutConfigResponse,
+    summary="Razorpay TEST checkout configuration",
+    description=(
+        "Returns public checkout fields only. Never exposes API secrets."
+    ),
+)
+def get_checkout_config(
+    case_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        return get_checkout_config_for_case(db, case_id)
+    except ValueError as exc:
+        if str(exc) == "case_not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Recovery case not found.",
+            ) from exc
+        raise
+# ============================================================
+# MERCHANT: CUSTOMER RECOVERY LINK
+# ============================================================
+
+@router.get(
+    "/cases/{case_id}/customer-recovery-link",
+    response_model=MerchantCustomerRecoveryLinkResponse,
+    summary="Customer recovery link status",
+)
+def get_customer_recovery_link_status(
+    case_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        return merchant_link_status(db, case_id)
+    except ValueError as exc:
+        if str(exc) == "case_not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Recovery case not found.",
+            ) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post(
+    "/cases/{case_id}/customer-recovery-link",
+    response_model=MerchantCustomerRecoveryLinkResponse,
+    summary="Generate customer recovery link",
+    description=(
+        "Creates a hashed, expiring customer recovery token. "
+        "Raw token is returned once in recovery_path."
+    ),
+)
+def post_customer_recovery_link(
+    case_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        result = create_customer_recovery_link(db, case_id)
+        db.commit()
+        return result
+    except ValueError as exc:
+        db.rollback()
+        code = str(exc)
+        if code == "case_not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Recovery case not found.",
+            ) from exc
+        if code == "already_recovered":
+            raise HTTPException(
+                status_code=400,
+                detail="Case is already recovered.",
+            ) from exc
+        if code == "case_closed":
+            raise HTTPException(
+                status_code=400,
+                detail="Closed cases cannot generate recovery links.",
+            ) from exc
+        raise HTTPException(status_code=400, detail=code) from exc
+    except Exception:
+        db.rollback()
+        raise

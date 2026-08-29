@@ -5,11 +5,19 @@ import {
   BarChart3,
   Activity,
   Settings,
+  Briefcase,
+  Radio,
+  Plug,
+  Terminal,
   X,
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, end: true },
+  { name: "Operations", href: "/operations", icon: Briefcase },
+  { name: "Live Activity", href: "/live-activity", icon: Radio },
+  { name: "Event Console", href: "/event-console", icon: Terminal },
+  { name: "Integrations", href: "/integrations", icon: Plug },
   { name: "Recovery Cases", href: "/cases", icon: CreditCard },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
   { name: "Activity", href: "/activity", icon: Activity },

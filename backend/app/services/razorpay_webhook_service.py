@@ -513,6 +513,27 @@ def apply_verified_payment_recovery(
             event="payment.captured",
         )
 
+    existing_result = db.scalar(
+        select(RecoveryResult).where(
+            RecoveryResult.case_id == case.id
+        )
+    )
+    if (
+        existing_result is not None
+        and existing_result.status
+        == RecoveryResultStatus.FULLY_RECOVERED
+    ):
+        return WebhookProcessResult(
+            accepted=True,
+            status="idempotent",
+            detail="RecoveryResult already fully recovered; webhook ignored.",
+            case_id=case.id,
+            payment_id=payment.id,
+            idempotent=True,
+            modified=False,
+            event="payment.captured",
+        )
+
     # Snapshot counters to prove webhook does not mutate them.
     prior_retry = case.retry_count
     prior_contact = case.contact_count

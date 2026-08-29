@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 from app.schema import (
     RecoveryCase,
     RecoveryAction,
-    RecoveryStrategy,
     RecoveryResult,
     RecoveryResultStatus,
     ActionStatus,
@@ -17,6 +16,9 @@ from app.services.ai.safe_strategy_selector import (
 
 from app.services.action_service import (
     create_recovery_action,
+)
+from app.services.strategy_evaluation_service import (
+    persist_strategy_evaluation,
 )
 
 
@@ -112,6 +114,12 @@ def process_recovery_loop(
         case=case,
     )
 
+    strategy = persist_strategy_evaluation(
+        db=db,
+        case=case,
+        selection=selection,
+    )
+
     # --------------------------------------------------------
     # No safe strategy available
     # --------------------------------------------------------
@@ -134,73 +142,8 @@ def process_recovery_loop(
 
     probability = selection["probability"]
 
-    safety_reason = selection["safety_reason"]
-
-    # ========================================================
-    # CREATE / REUSE STRATEGY RECORD
-    # ========================================================
-
-    strategy = db.scalar(
-        select(RecoveryStrategy).where(
-            RecoveryStrategy.case_id == case.id,
-            RecoveryStrategy.strategy_type
-            == selected_strategy,
-        )
-        .order_by(
-            RecoveryStrategy.created_at.desc()
-        )
-    )
-
-    if strategy:
-
-        strategy.is_selected = True
-
-    else:
-
-        strategy = RecoveryStrategy(
-            id=str(__import__("uuid").uuid4()),
-
-            case_id=case.id,
-
-            strategy_type=selected_strategy,
-
-            rationale=(
-                f"ML model predicted "
-                f"{probability:.2f}% recovery probability. "
-                f"Safety Engine approved the strategy. "
-                f"{safety_reason}"
-            ),
-
-            expected_probability=round(
-                probability
-            ),
-
-            stopping_rules=(
-                "Stop recovery if payment is successfully "
-                "recovered or safety policy blocks further "
-                "attempts."
-            ),
-
-            is_selected=True,
-        )
-
-        db.add(strategy)
-
-    # --------------------------------------------------------
-    # Deselect other strategies
-    # --------------------------------------------------------
-
-    other_strategies = db.scalars(
-        select(RecoveryStrategy).where(
-            RecoveryStrategy.case_id == case.id,
-            RecoveryStrategy.id != strategy.id,
-            RecoveryStrategy.is_selected.is_(True),
-        )
-    ).all()
-
-    for other in other_strategies:
-
-        other.is_selected = False
+    if strategy is None:
+        return None
 
     # --------------------------------------------------------
     # Update case

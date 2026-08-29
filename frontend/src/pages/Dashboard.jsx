@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, RefreshCw } from "lucide-react";
+import {
+  ArrowUpRight,
+  RefreshCw,
+  Zap,
+  Layers,
+  Briefcase,
+  BarChart3,
+  Radio,
+  Plug,
+} from "lucide-react";
 import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
 import RecoveryProgress from "../components/RecoveryProgress";
 import FailureChart from "../components/FailureChart";
 import ActivityFeed from "../components/ActivityFeed";
+import LiveEventFeed from "../components/LiveEventFeed";
 import LoadingState, {
   ErrorState,
   EmptyState,
@@ -15,9 +25,15 @@ import {
   getRecentActivity,
   getFailureCategories,
   getRecoveryCases,
+  getCaseTimeline,
+  getCasePaymentDetails,
 } from "../services/api";
 import { formatINR, formatPercent, formatDateTime } from "../utils/format";
 import { toLabel } from "../utils/labels";
+import {
+  selectCasesForDetailFetch,
+  buildLiveEvents,
+} from "../utils/liveEvents";
 
 const STATUS_ROWS = [
   { key: "active_cases", status: "ACTIVE", tone: "bg-pine" },
@@ -132,6 +148,7 @@ function Dashboard() {
   const [activity, setActivity] = useState([]);
   const [failures, setFailures] = useState([]);
   const [cases, setCases] = useState([]);
+  const [liveEvents, setLiveEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
@@ -173,6 +190,32 @@ function Dashboard() {
           };
         })
       );
+
+      // Compact live recovery events (same derivation as /live-activity)
+      const detailCases = selectCasesForDetailFetch(caseList, 12);
+      const timelineMap = {};
+      const paymentMap = {};
+      await Promise.all(
+        detailCases.map(async (item) => {
+          try {
+            const [timeline, paymentDetails] = await Promise.all([
+              getCaseTimeline(item.id),
+              getCasePaymentDetails(item.id),
+            ]);
+            timelineMap[item.id] = timeline;
+            paymentMap[item.id] = paymentDetails;
+          } catch (err) {
+            console.error(err);
+          }
+        })
+      );
+      setLiveEvents(
+        buildLiveEvents({
+          cases: detailCases,
+          timelines: timelineMap,
+          paymentDetailsByCase: paymentMap,
+        }).slice(0, 5)
+      );
     } catch (err) {
       console.error(err);
       setError("Unable to connect to RecoverAI API.");
@@ -184,6 +227,13 @@ function Dashboard() {
 
   useEffect(() => {
     loadDashboard();
+  }, [loadDashboard]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      loadDashboard({ soft: true });
+    }, 15000);
+    return () => window.clearInterval(intervalId);
   }, [loadDashboard]);
 
   const failureChartData = useMemo(() => {
@@ -259,6 +309,157 @@ function Dashboard() {
               <ArrowUpRight size={15} />
             </Link>
           </div>
+        </div>
+      </section>
+
+      <section className="panel px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ink text-white">
+              <Plug size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                Payment integration
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Razorpay TEST provider, webhook setup, and connection health
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/integrations"
+            className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/30 hover:text-pine"
+          >
+            Manage integration
+            <ArrowUpRight size={15} />
+          </Link>
+        </div>
+      </section>
+
+      <section className="panel px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-pine-soft text-pine">
+              <Radio size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                Live recovery event feed
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Real-time recovery events from case and timeline APIs
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/live-activity"
+            className="inline-flex items-center gap-2 rounded-xl border border-pine/25 bg-pine-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/40 hover:bg-pine-soft/70"
+          >
+            View live activity
+            <ArrowUpRight size={15} />
+          </Link>
+        </div>
+      </section>
+
+      <section className="panel px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-pine-soft text-pine">
+              <Briefcase size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                Merchant operations center
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Review escalated, in-recovery, recovered, and stopped cases
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/operations"
+            className="inline-flex items-center gap-2 rounded-xl border border-pine/25 bg-pine-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/40 hover:bg-pine-soft/70"
+          >
+            Open operations
+            <ArrowUpRight size={15} />
+          </Link>
+        </div>
+      </section>
+
+      <section className="panel px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-skyline-soft text-skyline">
+              <BarChart3 size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                Measured revenue recovery
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                KPIs, funnel, failure exposure, and recent verified recoveries
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/analytics"
+            className="inline-flex items-center gap-2 rounded-xl border border-skyline/25 bg-skyline-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-skyline/40 hover:bg-skyline-soft/60"
+          >
+            View recovery analytics
+            <ArrowUpRight size={15} />
+          </Link>
+        </div>
+      </section>
+
+      <section className="panel px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sand-soft text-sand">
+              <Zap size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                Provider Event Console
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Simulate payment-provider events entering RecoverAI (DEMO / TEST)
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/event-console"
+            className="inline-flex items-center gap-2 rounded-xl border border-sand/30 bg-sand-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-sand/50 hover:bg-sand-soft/70"
+          >
+            Open event console
+            <ArrowUpRight size={15} />
+          </Link>
+        </div>
+      </section>
+
+      <section className="panel px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-skyline-soft text-skyline">
+              <Layers size={16} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                Demo: batch revenue recovery
+              </p>
+              <p className="mt-0.5 text-xs text-ink-mute">
+                Submit multiple simulated failures and measure recovery across
+                the batch
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/batch-demo"
+            className="inline-flex items-center gap-2 rounded-xl border border-skyline/25 bg-skyline-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-skyline/40 hover:bg-skyline-soft/60"
+          >
+            Run batch recovery demo
+            <ArrowUpRight size={15} />
+          </Link>
         </div>
       </section>
 
@@ -406,6 +607,31 @@ function Dashboard() {
                 </div>
               </div>
             )}
+          </section>
+
+          {/* Live recovery activity (newest 5 real events) */}
+          <section className="panel p-5 sm:p-6">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-display text-xl font-medium text-ink">
+                  Live recovery activity
+                </h3>
+                <p className="mt-1 text-sm text-ink-mute">
+                  Newest 5 events from case timeline and payment APIs
+                </p>
+              </div>
+              <Link
+                to="/live-activity"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-pine hover:underline"
+              >
+                View live activity
+                <ArrowUpRight size={12} />
+              </Link>
+            </div>
+            <LiveEventFeed
+              events={liveEvents}
+              emptyMessage="No live recovery events loaded yet."
+            />
           </section>
 
           {/* 5. Recent activity */}
