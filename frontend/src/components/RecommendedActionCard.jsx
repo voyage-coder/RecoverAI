@@ -65,8 +65,7 @@ function RecommendedActionCard({
           No merchant action required
         </p>
         <p className="mt-2 text-sm text-ink-mute">
-          Case is {toLabel(caseStatus)}. Recovery state comes from the backend
-          only.
+          Case is {toLabel(caseStatus)}.
         </p>
       </div>
     );
@@ -89,12 +88,12 @@ function RecommendedActionCard({
             "Not available"}
         </p>
         <p className="mt-3 text-xs text-ink-faint">
-          There is no Force Recover / Mark Paid control. Recovery still requires
-          a verified Razorpay webhook if a TEST order is awaiting payment.
+          There is no Force Recover control. Verified by Razorpay webhook if
+          payment was started.
         </p>
         {awaitingCustomerPayment && (
           <p className="mt-3 text-sm font-medium text-sand">
-            Customer payment required — awaiting verified webhook.
+            Waiting for customer payment.
           </p>
         )}
       </div>
@@ -108,14 +107,14 @@ function RecommendedActionCard({
           <AlertTriangle size={18} className="mt-0.5 text-clay" />
           <div>
             <p className="text-sm font-semibold text-clay">
-              Action blocked by Safety Engine
+              Blocked by safety rules
             </p>
             <p className="mt-2 text-sm text-ink-mute">
               {blockedAction.result_text ||
                 "Safety policy blocked this recovery action."}
             </p>
             <p className="mt-2 text-xs text-ink-faint">
-              The frontend cannot bypass Safety Engine decisions.
+              Safety decisions cannot be bypassed here.
             </p>
           </div>
         </div>
@@ -130,12 +129,10 @@ function RecommendedActionCard({
           Recommended Action
         </p>
         <h4 className="mt-2 font-display text-2xl font-medium text-ink">
-          Awaiting customer payment
+          Waiting for customer payment
         </h4>
         <p className="mt-2 text-sm text-ink-mute">
-          Merchant already initiated recovery. The customer must complete
-          payment. Razorpay sends payment.captured; RecoverAI marks recovered
-          only after signature verification.
+          The customer must complete payment. Verified by Razorpay webhook.
         </p>
         {actionState && (
           <div className="mt-3">
@@ -153,8 +150,8 @@ function RecommendedActionCard({
           Recommended Action
         </p>
         <p className="mt-2 text-sm text-ink-mute">
-          No pending recovery action right now. Use Prepare next recovery action
-          only when the case is not awaiting customer payment.
+          No pending recovery action right now. Use Prepare next action if the
+          customer is not already paying.
         </p>
       </div>
     );
@@ -163,14 +160,13 @@ function RecommendedActionCard({
   return (
     <div className="rounded-[18px] border border-pine/25 bg-pine-soft/35 p-5 sm:p-6">
       <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-pine">
-        Recommended Action
+        Recommended recovery method
       </p>
       <h4 className="mt-2 font-display text-2xl font-medium text-ink">
         {toLabel(strategy)}
       </h4>
       <p className="mt-2 text-sm text-ink-mute">
-        RecoverAI recommends this action based on the current diagnosis and
-        recovery strategy. Nothing runs until you execute it.
+        Recommended action: {toLabel(strategy)}. Nothing runs until you confirm.
       </p>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -212,7 +208,7 @@ function RecommendedActionCard({
           className="mt-5 inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-soft disabled:opacity-60"
         >
           <Play size={15} />
-          Execute recommended action
+          Run recommended action
         </button>
       ) : (
         <div className="mt-5 rounded-xl border border-ink/10 bg-white p-4">
@@ -227,9 +223,7 @@ function RecommendedActionCard({
             </span>
           </p>
           <p className="mt-3 text-xs text-ink-faint">
-            This action will be recorded in the recovery audit trail and must
-            pass the Safety Engine. Customer details are shown only when the
-            backend provides them.
+            This is recorded in the audit trail and must pass safety rules.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button

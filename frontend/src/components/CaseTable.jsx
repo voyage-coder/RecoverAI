@@ -3,6 +3,7 @@ import StatusBadge from "./StatusBadge";
 import { EmptyState } from "./LoadingState";
 import { formatINR, formatDate } from "../utils/format";
 import { toLabel } from "../utils/labels";
+import OriginBadges from "./OriginBadges";
 
 function CaseTable({ cases = [] }) {
   if (!cases.length) {
@@ -42,6 +43,18 @@ function CaseTable({ cases = [] }) {
                     <p className="mt-1 text-[11px] text-ink-faint">
                       {toLabel(item.current_step)}
                     </p>
+                    <div className="mt-1.5">
+                      <OriginBadges
+                        eventSource={item.event_source}
+                        eventSourceLabel={item.event_source_label}
+                        outcomeKind={item.outcome_kind}
+                        webhookAuthorityLabel={item.webhook_authority_label}
+                        recovered={
+                          String(item.status || "").toUpperCase() ===
+                          "RECOVERED"
+                        }
+                      />
+                    </div>
                   </td>
                   <td className="px-4 py-4 text-ink-soft">
                     {toLabel(item.failure_category)}

@@ -121,10 +121,7 @@ function PaymentEventSimulator() {
           <p className="eyebrow">Demo tools</p>
           <h2 className="page-title">Payment Event Simulator</h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-mute">
-            Inject a simulated payment-provider{" "}
-            <span className="font-medium text-ink-soft">payment.failed</span>{" "}
-            event into RecoverAI. This is demo event simulation — not a real
-            Razorpay webhook and not a live payment gateway.
+            Send a test payment.failed event into RecoverAI.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -132,7 +129,7 @@ function PaymentEventSimulator() {
             to="/event-console"
             className="inline-flex items-center gap-2 rounded-xl border border-pine/25 bg-pine-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/40"
           >
-            Open Event Console
+            Create demo event
           </Link>
           <Link
             to="/"
@@ -153,8 +150,7 @@ function PaymentEventSimulator() {
               Event payload
             </h3>
             <p className="mt-1 text-sm text-ink-mute">
-              RecoverAI will create Customer, Order, Payment, and start the
-              existing recovery pipeline.
+              Fill in the customer and payment details, then send.
             </p>
           </div>
 

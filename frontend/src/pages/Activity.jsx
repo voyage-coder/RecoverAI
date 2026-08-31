@@ -47,7 +47,7 @@ function Activity() {
         <p className="eyebrow">Operations Feed</p>
         <h2 className="page-title">Activity</h2>
         <p className="mt-2 text-sm text-ink-mute">
-          Latest recovery case updates from the pipeline
+          Latest recovery case updates
         </p>
       </div>
 

@@ -17,11 +17,7 @@ function SupportedEvents() {
             payment.failed
           </p>
           <p className="mt-2 text-sm text-ink-mute">
-            Starts the revenue recovery workflow — diagnosis, strategy, Safety
-            Engine, and a pending recovery action.
-          </p>
-          <p className="mt-3 text-xs font-medium text-ink">
-            Does NOT mean recovered.
+            Starts recovery. Does not mean recovered.
           </p>
         </div>
 
@@ -33,19 +29,10 @@ function SupportedEvents() {
             payment.captured
           </p>
           <p className="mt-2 text-sm text-ink-mute">
-            Verified payment confirmation from Razorpay. RecoverAI marks the
-            case recovered only after signature verification on the backend.
-          </p>
-          <p className="mt-3 text-xs font-medium text-ink">
-            Does NOT come from the frontend checkout handler.
+            Verified by Razorpay webhook. This is what marks recovered.
           </p>
         </div>
       </div>
-
-      <p className="mt-4 text-sm text-ink-mute">
-        <span className="font-semibold text-ink">RECOVERED</span> is only set by
-        the verified backend webhook flow — never by Checkout.js success alone.
-      </p>
     </div>
   );
 }

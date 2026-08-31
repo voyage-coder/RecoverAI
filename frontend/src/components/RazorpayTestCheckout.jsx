@@ -59,7 +59,7 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
           }
           setOpening(false);
           onComplete?.(
-            "TEST payment submitted to Razorpay. RecoverAI updates only after a verified payment.captured webhook reaches the backend — click Refresh. Localhost needs ngrok → POST /api/webhooks/razorpay."
+            "TEST payment submitted. Refresh after the verified webhook arrives."
           );
         },
         modal: {
@@ -134,8 +134,8 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
       {(paymentRecovered || orderAlreadyPaidInSession) && (
         <div className="rounded-xl border border-pine/20 bg-pine-soft/40 px-4 py-3 text-sm text-ink-mute">
           {paymentRecovered
-            ? "Payment is already RECOVERED in RecoverAI (verified webhook)."
-            : "This Razorpay order was already paid in Checkout. Do not open Checkout again — that causes a preferences 400. Set up the webhook (ngrok) and Refresh until the case becomes RECOVERED."}
+            ? "Payment recovered (verified webhook)."
+            : "This order is already paid. Refresh after the webhook arrives."}
         </div>
       )}
 
@@ -161,7 +161,7 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 rounded-xl border border-pine/30 bg-pine-soft/50 px-4 py-2.5 text-sm font-semibold text-pine transition hover:bg-pine-soft"
           >
-            Open TEST payment link
+            Open payment link
             <ExternalLink size={14} />
           </a>
         )}
@@ -173,11 +173,7 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
 
       <p className="text-xs text-ink-faint">
         TEST card: 4111 1111 1111 1111 · any future expiry · any CVV · OTP
-        123456. Console lines for lumberjack/sentry (
-        <span className="font-mono">ERR_BLOCKED_BY_CLIENT</span>) are from an
-        ad blocker and can be ignored. A preferences{" "}
-        <span className="font-mono">400</span> means this order cannot be
-        checked out again (usually already paid).
+        123456.
       </p>
     </div>
   );

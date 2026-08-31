@@ -123,8 +123,7 @@ function Analytics() {
             <p className="eyebrow">Measured recovery</p>
             <h2 className="page-title">Analytics</h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-mute">
-              Read-only revenue recovery metrics from live RecoverAI APIs.
-              Nothing here invents recovery or bypasses webhook verification.
+              See how RecoverAI is performing.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

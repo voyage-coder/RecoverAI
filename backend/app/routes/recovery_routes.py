@@ -43,6 +43,9 @@ from app.services.customer_recovery_service import (
 from app.services.decision_explanation_service import (
     build_decision_explanation,
 )
+from app.services.merchant_settings_service import (
+    enrich_case_operations,
+)
 
 
 router = APIRouter(
@@ -70,7 +73,7 @@ def get_recovery_cases(
         )
     ).all()
 
-    return cases
+    return [enrich_case_operations(db, case) for case in cases]
 
 
 # ============================================================
@@ -99,7 +102,24 @@ def get_recovery_case(
             detail="Recovery case not found.",
         )
 
-    return case
+    extras = enrich_case_operations(db, case)
+    payload = RecoveryCaseResponse.model_validate(case).model_dump()
+    for key in (
+        "event_source",
+        "event_source_label",
+        "webhook_authority_label",
+        "outcome_kind",
+        "recommended_action",
+        "approval_state",
+        "safety_decision",
+        "requires_approval",
+        "policy_reason",
+        "next_step_code",
+        "next_step_label",
+        "next_step_detail",
+    ):
+        payload[key] = extras.get(key)
+    return payload
 
 
 # ============================================================
@@ -347,8 +367,25 @@ def execute_pending_recovery_action(
             raise HTTPException(
                 status_code=404,
                 detail=(
-                    "No pending recovery action for this case. "
-                    "Use continue-recovery to prepare the next action."
+                    "Retry unavailable — no pending recovery action. "
+                    "Continue recovery to prepare the next Safety-approved "
+                    "step, or review why recovery stopped."
+                ),
+            ) from exc
+        if code == "action_already_terminal":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This recovery action already finished and cannot "
+                    "execute twice."
+                ),
+            ) from exc
+        if code == "approval_required":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Merchant approval is required before this action "
+                    "can run. Use Approve & execute in Operations."
                 ),
             ) from exc
         raise HTTPException(status_code=400, detail=code) from exc

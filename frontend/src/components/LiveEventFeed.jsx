@@ -48,6 +48,21 @@ function LiveEventFeed({ events = [], emptyMessage = "No live events yet." }) {
                 {event.caseStatus && (
                   <StatusBadge value={event.caseStatus} />
                 )}
+                {event.sourceLabel && (
+                  <span className="rounded-lg bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-mute">
+                    {event.sourceLabel}
+                  </span>
+                )}
+                {event.outcomeKind === "CONFIRMED_RECOVERY" && (
+                  <span className="rounded-lg bg-pine-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-pine">
+                    Confirmed recovery
+                  </span>
+                )}
+                {event.outcomeKind === "PREDICTED_RECOVERY" && (
+                  <span className="rounded-lg bg-skyline-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-skyline">
+                    Predicted recovery
+                  </span>
+                )}
                 {event.failureCategory && (
                   <span className="text-xs text-ink-mute">
                     {toLabel(event.failureCategory)}

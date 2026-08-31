@@ -13,7 +13,8 @@ import AIRecoveryDecision from "../components/AIRecoveryDecision";
 import CustomerRecoveryJourney from "../components/CustomerRecoveryJourney";
 import LiveRecoveryState from "../components/LiveRecoveryState";
 import RecoveryActivityFeed from "../components/RecoveryActivityFeed";
-import DemoFlowGuide from "../components/DemoFlowGuide";
+import OriginBadges from "../components/OriginBadges";
+import PaymentLinkDisplay from "../components/PaymentLinkDisplay";
 import LoadingState, {
   ErrorState,
   EmptyState,
@@ -28,7 +29,7 @@ import {
   continueRecovery,
   parseApiError,
 } from "../services/api";
-import { formatINR, formatDateTime } from "../utils/format";
+import { formatINR, formatDateTime, extractPaymentLink } from "../utils/format";
 import { toLabel } from "../utils/labels";
 import {
   deriveRecoveryStages,
@@ -228,7 +229,7 @@ function CaseDetails() {
     ) {
       setPostCheckoutPolling(false);
       setOperationMessage(
-        "Verified webhook applied — case is RECOVERED."
+        "Verified webhook applied — payment recovered."
       );
     }
   }, [postCheckoutPolling, recoveryCase?.status]);
@@ -458,8 +459,25 @@ function CaseDetails() {
                 {recoveryCase.case_number}
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/55">
+                See why this payment failed and how RecoverAI is recovering it.
+              </p>
+              <p className="mt-2 max-w-2xl text-sm text-white/70">
                 {displayText(recoveryCase.failure_reason)}
               </p>
+              <div className="mt-3">
+                <OriginBadges
+                  eventSource={recoveryCase.event_source}
+                  eventSourceLabel={recoveryCase.event_source_label}
+                  outcomeKind={recoveryCase.outcome_kind}
+                  webhookAuthorityLabel={
+                    recoveryCase.webhook_authority_label
+                  }
+                  recovered={
+                    String(recoveryCase.status || "").toUpperCase() ===
+                    "RECOVERED"
+                  }
+                />
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge value={recoveryCase.status} />
@@ -503,6 +521,61 @@ function CaseDetails() {
           result={result}
           payment={payment}
         />
+        <div className="mt-4 rounded-xl border border-ink/8 bg-mist-soft/60 px-4 py-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+            What to do next
+          </p>
+          <p className="mt-2 text-sm font-semibold text-ink">
+            {recoveryCase.next_step_label || "Review this case"}
+          </p>
+          <p className="mt-1 text-sm text-ink-mute">
+            {recoveryCase.next_step_detail ||
+              recoveryCase.current_step ||
+              "Not available"}
+          </p>
+          <div className="mt-3 grid gap-2 text-xs text-ink-mute sm:grid-cols-2">
+            <p>
+              Why it failed:{" "}
+              <span className="text-ink">
+                {displayText(recoveryCase.failure_reason)}
+              </span>
+            </p>
+            <p>
+              AI predicted:{" "}
+              <span className="text-ink">
+                {recoveryCase.recovery_probability != null
+                  ? `${recoveryCase.recovery_probability}% (prediction)`
+                  : "Not available"}
+              </span>
+            </p>
+            <p>
+              Strategy:{" "}
+              <span className="text-ink">
+                {displayLabel(recoveryCase.selected_strategy)}
+              </span>
+            </p>
+            <p>
+              Safety:{" "}
+              <span className="text-ink">
+                {recoveryCase.safety_decision || "Not available"}
+              </span>
+            </p>
+            <p>
+              Approval:{" "}
+              <span className="text-ink">
+                {recoveryCase.requires_approval
+                  ? "Required"
+                  : displayLabel(recoveryCase.approval_state)}
+              </span>
+            </p>
+            <p>
+              Waiting action:{" "}
+              <span className="text-ink">
+                {displayLabel(recoveryCase.recommended_action)}
+              </span>
+            </p>
+          </div>
+        </div>
       </section>
 
       <section className="panel p-5 sm:p-6">
@@ -555,7 +628,7 @@ function CaseDetails() {
       <section className="panel p-5 sm:p-6">
         <SectionHeading
           title="Current State"
-          subtitle="Live backend snapshot — refreshes with case polling"
+          subtitle="Payment status, recovery status, and next step."
         />
         <LiveRecoveryState rows={liveStateRows} />
       </section>
@@ -563,7 +636,7 @@ function CaseDetails() {
       <section className="panel p-5 sm:p-6">
         <SectionHeading
           title="Recovery Operations"
-          subtitle="Operator controls — merchant initiates; customer pays; webhook verifies"
+          subtitle="Run the recommended action or prepare the next one."
         />
         <RecoveryOperationsPanel
           recoveryCase={recoveryCase}
@@ -597,7 +670,7 @@ function CaseDetails() {
       <section className="panel p-5 sm:p-6">
         <SectionHeading
           title="Recovery Activity"
-          subtitle="Events built from timeline and payment APIs only"
+          subtitle="What happened on this case, in order."
         />
         <RecoveryActivityFeed events={activityEvents} />
       </section>
@@ -968,13 +1041,20 @@ function CaseDetails() {
       <section className="panel p-5 sm:p-6">
         <SectionHeading
           title="Communications"
-          subtitle="Customer-facing messages recorded for this case"
+          subtitle="Messages sent for this case, including any payment link."
         />
+        {checkoutConfig?.payment_link_url ? (
+          <div className="mb-4">
+            <PaymentLinkDisplay url={checkoutConfig.payment_link_url} />
+          </div>
+        ) : null}
         {communications.length === 0 ? (
           <EmptyState message="No communications recorded." />
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {communications.map((comm) => (
+            {communications.map((comm) => {
+              const commLink = extractPaymentLink(comm.content);
+              return (
               <div
                 key={comm.id}
                 className="rounded-2xl border border-ink/8 bg-mist-soft/70 p-4"
@@ -993,11 +1073,16 @@ function CaseDetails() {
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">
                   {displayText(comm.content)}
                 </p>
+                {commLink &&
+                commLink !== checkoutConfig?.payment_link_url ? (
+                  <PaymentLinkDisplay url={commLink} compact />
+                ) : null}
                 <p className="mt-3 font-mono text-[11px] text-ink-faint">
                   Sent {displayWhen(comm.sent_at)}
                 </p>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </section>
@@ -1006,7 +1091,7 @@ function CaseDetails() {
       <section className="panel p-5 sm:p-6">
         <SectionHeading
           title="Payment / Recovery Summary"
-          subtitle="Cross-reference values from case and result APIs"
+          subtitle="Payment status, amount, and recovery result."
         />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <DetailItem

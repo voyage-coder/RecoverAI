@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import {
   getCustomerRecoveryByToken,
   parseApiError,
@@ -113,7 +113,7 @@ function CustomerRecover() {
         handler: function () {
           setOpening(false);
           setCheckoutNote(
-            "Payment submitted. Confirming securely — this page updates when confirmation completes."
+            "Payment submitted. Confirming securely… this page updates when confirmation completes."
           );
           // Never mark recovered from client callback.
           window.setTimeout(() => load(), 1500);
@@ -173,6 +173,7 @@ function CustomerRecover() {
   }
 
   const recovered = data?.customer_status === "recovered";
+  const paymentLink = data?.checkout?.payment_link_url || null;
   const canPay =
     data?.payment_action_available &&
     data?.checkout?.available &&
@@ -187,10 +188,12 @@ function CustomerRecover() {
         </p>
         <div className="mt-4 rounded-2xl border border-black/10 bg-white p-6 shadow-sm sm:p-8">
           <h1 className="font-serif text-3xl leading-tight text-[#1c1a16]">
-            {data.headline}
+            {recovered ? "Payment recovered successfully" : "Complete your payment"}
           </h1>
           <p className="mt-3 text-sm leading-relaxed text-[#5c584f]">
-            {data.message}
+            {recovered
+              ? "Thank you. Your payment has been confirmed."
+              : "Use the button below to pay securely."}
           </p>
 
           <div className="mt-8 rounded-xl border border-black/8 bg-[#f7f5f0] px-4 py-4">
@@ -218,7 +221,7 @@ function CustomerRecover() {
 
           {recovered ? (
             <div className="mt-6 rounded-xl border border-[#2f6b4f]/20 bg-[#e8f3ec] px-4 py-3 text-sm text-[#245540]">
-              Your payment has been successfully completed.
+              Payment recovered successfully
             </div>
           ) : canPay ? (
             <button
@@ -233,15 +236,29 @@ function CustomerRecover() {
                   Opening checkout…
                 </>
               ) : (
-                "Continue Payment"
+                "Continue payment"
               )}
             </button>
           ) : (
             <p className="mt-6 text-sm text-[#5c584f]">
               {data.customer_status === "payment_pending"
                 ? "Waiting for payment confirmation…"
-                : "A payment action is not available on this link right now."}
+                : paymentLink
+                  ? "Use the payment link below to pay securely."
+                  : "A payment action is not available on this link right now."}
             </p>
+          )}
+
+          {!recovered && paymentLink && (
+            <a
+              href={paymentLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-[#1c1a16]"
+            >
+              Open payment link
+              <ExternalLink size={14} />
+            </a>
           )}
 
           {checkoutNote && (
@@ -250,8 +267,7 @@ function CustomerRecover() {
 
           {data.test_mode && (
             <p className="mt-6 text-[11px] leading-relaxed text-[#8a8478]">
-              Demo environment — Razorpay TEST MODE. No real customer money is
-              processed. Success appears only after secure confirmation.
+              Demo environment — Razorpay TEST MODE.
             </p>
           )}
         </div>

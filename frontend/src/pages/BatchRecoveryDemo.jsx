@@ -212,12 +212,7 @@ function BatchRecoveryDemo() {
           <p className="eyebrow">Demo tools</p>
           <h2 className="page-title">Batch Recovery Demo</h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-mute">
-            Generate a batch of simulated payment failures through{" "}
-            <span className="font-mono text-xs text-ink-soft">
-              POST /api/events/payment
-            </span>
-            . Each event runs the full RecoverAI recovery pipeline — no
-            direct database writes, no fabricated recovery.
+            Create several test failed payments at once.
           </p>
         </div>
         <Link

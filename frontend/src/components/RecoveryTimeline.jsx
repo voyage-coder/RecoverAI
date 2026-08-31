@@ -6,17 +6,16 @@ import { toLabel } from "../utils/labels";
 const FLOW_STAGES = [
   "Payment Failed",
   "Diagnosis",
-  "AI Prediction",
-  "Strategy",
-  "Safety",
-  "Merchant Execution",
+  "Strategy Selected",
+  "Safety Check",
+  "Approval / Execution",
   "Customer Payment",
-  "Webhook Verification",
-  "Revenue Recovered",
+  "Webhook Verified",
+  "Recovery Confirmed",
 ];
 
 function stageForEvent(event) {
-  return event.stage || "Merchant Execution";
+  return event.stage || "Approval / Execution";
 }
 
 function buildTimelineEvents(timeline) {
@@ -81,7 +80,7 @@ function buildTimelineEvents(timeline) {
     events.push({
       id: `strategy-${strategy.id}`,
       type: "strategy",
-      stage: "Strategy",
+      stage: "Strategy Selected",
       title: strategy.is_selected ? "Strategy selected" : "Strategy evaluated",
       description: strategy.rationale,
       status: strategy.is_selected ? "EXECUTED" : "PENDING",
@@ -100,7 +99,7 @@ function buildTimelineEvents(timeline) {
     events.push({
       id: `audit-${log.id}`,
       type: isSafety ? "safety" : "audit",
-      stage: isSafety ? "Safety" : "Merchant Execution",
+      stage: isSafety ? "Safety Check" : "Approval / Execution",
       title: isSafety ? "Safety check" : toLabel(log.action_type),
       description:
         typeof log.details === "string"
@@ -117,7 +116,7 @@ function buildTimelineEvents(timeline) {
     const actionLabel = toLabel(action.action_type);
     const status = String(action.status || "").toUpperCase();
     const stage =
-      status === "BLOCKED" ? "Safety" : "Merchant Execution";
+      status === "BLOCKED" ? "Safety Check" : "Approval / Execution";
 
     events.push({
       id: `action-${action.id}`,
@@ -140,7 +139,7 @@ function buildTimelineEvents(timeline) {
       events.push({
         id: `action-executed-${action.id}`,
         type: "action",
-        stage: "Merchant Execution",
+        stage: "Approval / Execution",
         title: "Merchant execution",
         description: action.result_text || `${actionLabel} completed`,
         status: action.status,
@@ -172,8 +171,8 @@ function buildTimelineEvents(timeline) {
     events.push({
       id: `result-${result.id}`,
       type: "result",
-      stage: recovered ? "Revenue Recovered" : "Webhook Verification",
-      title: recovered ? "Revenue recovered" : "Recovery result recorded",
+      stage: recovered ? "Recovery Confirmed" : "Webhook Verified",
+      title: recovered ? "Recovery confirmed" : "Recovery result recorded",
       description: `Recovered ${formatINR(result.recovered_amount)} of ${formatINR(result.original_amount)}`,
       status: result.status,
       timestamp: result.recovered_at || result.created_at,
@@ -185,8 +184,8 @@ function buildTimelineEvents(timeline) {
       events.push({
         id: `webhook-${result.id}`,
         type: "webhook",
-        stage: "Webhook Verification",
-        title: "Webhook verification",
+        stage: "Webhook Verified",
+        title: "Webhook verified",
         description:
           "Payment confirmation applied from verified provider webhook",
         status: "VERIFIED",

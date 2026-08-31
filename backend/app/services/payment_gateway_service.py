@@ -45,7 +45,45 @@ SOURCE_SIMULATED = "SIMULATED_GATEWAY"
 
 
 def is_webhook_secret_configured() -> bool:
-    return bool(RAZORPAY_WEBHOOK_SECRET)
+    if RAZORPAY_WEBHOOK_SECRET:
+        return True
+    try:
+        from app.database import SessionLocal
+        from app.services.merchant_settings_service import stored_credentials
+
+        db = SessionLocal()
+        try:
+            _, _, webhook = stored_credentials(db)
+            return bool(webhook)
+        finally:
+            db.close()
+    except Exception:
+        return False
+
+
+def _stored_api_keys() -> tuple[str, str]:
+    try:
+        from app.database import SessionLocal
+        from app.services.merchant_settings_service import stored_credentials
+
+        db = SessionLocal()
+        try:
+            key_id, key_secret, _ = stored_credentials(db)
+            return key_id, key_secret
+        finally:
+            db.close()
+    except Exception:
+        return "", ""
+
+
+def _active_key_id() -> str:
+    stored_id, _ = _stored_api_keys()
+    return stored_id or RAZORPAY_KEY_ID
+
+
+def _active_key_secret() -> str:
+    _, stored_secret = _stored_api_keys()
+    return stored_secret or RAZORPAY_KEY_SECRET
 
 
 # ============================================================
@@ -79,13 +117,16 @@ class GatewayPaymentLinkResult:
 # ============================================================
 
 def is_razorpay_configured() -> bool:
-    """True when both TEST credentials are present."""
+    """True when both TEST credentials are present (env or merchant store)."""
 
-    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+    key_id = _active_key_id()
+    key_secret = _active_key_secret()
+
+    if not key_id or not key_secret:
         return False
 
     # Refuse live credentials — RecoverAI uses TEST MODE only.
-    if RAZORPAY_KEY_ID.startswith("rzp_live_"):
+    if key_id.startswith("rzp_live_"):
         logger.warning(
             "RAZORPAY_KEY_ID looks like a LIVE key. "
             "RecoverAI will use SIMULATED_GATEWAY instead."
@@ -137,11 +178,16 @@ def _safe_gateway_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
     return safe
 
 
+def get_razorpay_public_key_id() -> str:
+    """TEST key id only — never the secret."""
+    return _active_key_id()
+
+
 def _get_razorpay_client():
     import razorpay
 
     return razorpay.Client(
-        auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
+        auth=(_active_key_id(), _active_key_secret())
     )
 
 
@@ -274,6 +320,7 @@ def create_payment_link(
     customer_email: str | None = None,
     customer_contact: str | None = None,
     notes: dict[str, Any] | None = None,
+    expire_by: int | None = None,
 ) -> GatewayPaymentLinkResult:
     """
     Create a payment link for SEND_PAYMENT_LINK strategies.
@@ -333,6 +380,9 @@ def create_payment_link(
             customer["contact"] = str(customer_contact)[:15]
         if customer:
             payload["customer"] = customer
+
+        if expire_by:
+            payload["expire_by"] = int(expire_by)
 
         link = client.payment_link.create(payload)
 

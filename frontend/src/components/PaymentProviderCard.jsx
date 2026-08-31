@@ -76,6 +76,21 @@ function PaymentProviderCard({ status }) {
           value={webhookLabel}
           tone={webhookTone}
         />
+        {status?.merchant_settings?.credentials_last_tested_at && (
+          <StatusRow
+            label="Last connection test"
+            value={
+              status.merchant_settings.credentials_last_test_ok
+                ? "Passed"
+                : "Failed"
+            }
+            tone={
+              status.merchant_settings.credentials_last_test_ok
+                ? "success"
+                : "danger"
+            }
+          />
+        )}
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-ink-faint">

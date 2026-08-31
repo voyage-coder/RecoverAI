@@ -57,11 +57,12 @@ SUPPORTED_SUCCESS_EVENTS = frozenset(
 # Non-success payment events we acknowledge without recovering.
 SUPPORTED_NON_SUCCESS_EVENTS = frozenset(
     {
-        "payment.failed",
         "payment.authorized",
         "order.paid",
     }
 )
+
+PAYMENT_FAILED_EVENT = "payment.failed"
 
 # Business rule (explicit):
 # A signature-verified Razorpay capture means money was received.
@@ -248,6 +249,172 @@ def extract_payment_success_fields(
         "notes": notes,
         "case_number": notes.get("case_number"),
     }
+
+
+def _map_razorpay_failure(payment: dict[str, Any]) -> tuple[str, str]:
+    code = str(
+        payment.get("error_code")
+        or payment.get("error_reason")
+        or "TECHNICAL_FAILURE"
+    ).strip().upper()
+    reason = str(
+        payment.get("error_description")
+        or payment.get("error_reason")
+        or "Payment failed"
+    ).strip()
+
+    mapping = {
+        "INSUFFICIENT_FUNDS": "INSUFFICIENT_FUNDS",
+        "CARD_DECLINED": "CARD_DECLINED",
+        "BAD_REQUEST_ERROR": "CARD_DECLINED",
+        "GATEWAY_ERROR": "GATEWAY_TIMEOUT",
+        "SERVER_ERROR": "GATEWAY_TIMEOUT",
+        "NETWORK_ERROR": "TECHNICAL_FAILURE",
+        "AUTHENTICATION_FAILED": "AUTHENTICATION_FAILED",
+        "EXPIRED_CARD": "EXPIRED_CARD",
+    }
+    mapped = mapping.get(code, "TECHNICAL_FAILURE")
+    if "insufficient" in reason.lower():
+        mapped = "INSUFFICIENT_FUNDS"
+    elif "timeout" in reason.lower() or "gateway" in reason.lower():
+        mapped = "GATEWAY_TIMEOUT"
+    elif "declin" in reason.lower():
+        mapped = "CARD_DECLINED"
+    return mapped[:100], (reason or mapped)[:500]
+
+
+def ingest_verified_payment_failed(
+    db: Session,
+    payload: dict[str, Any],
+) -> WebhookProcessResult:
+    """
+    Signature-verified payment.failed → existing ingest pipeline.
+
+    Never marks RECOVERED. Replays are idempotent via Razorpay payment id.
+    """
+    from app.services.event_ingestion_service import (
+        ingest_payment_failed_event,
+    )
+
+    payment = _entity(payload, "payment")
+    if not payment:
+        return WebhookProcessResult(
+            accepted=True,
+            status="ignored",
+            detail="payment.failed missing payment entity.",
+            event=PAYMENT_FAILED_EVENT,
+            modified=False,
+        )
+
+    notes = _safe_notes(payment.get("notes") or {})
+    case_number = notes.get("case_number")
+    razorpay_payment_id = str(payment.get("id") or "").strip()
+    razorpay_order_id = str(payment.get("order_id") or "").strip() or None
+
+    match_fields = {
+        "razorpay_payment_id": razorpay_payment_id or None,
+        "razorpay_order_id": razorpay_order_id,
+        "razorpay_payment_link_id": None,
+        "case_number": case_number,
+    }
+    existing_case, existing_payment, _attempt = find_case_for_webhook(
+        db, match_fields
+    )
+    if existing_case is not None:
+        logger.info(
+            "webhook_payment_failed matched existing case=%s — no new ingest",
+            existing_case.case_number,
+        )
+        return WebhookProcessResult(
+            accepted=True,
+            status="failure_matched",
+            detail=(
+                "Verified payment.failed matched an existing recovery case. "
+                "No duplicate case created and no RECOVERED mutation."
+            ),
+            event=PAYMENT_FAILED_EVENT,
+            case_id=existing_case.id,
+            payment_id=(
+                existing_payment.id if existing_payment else None
+            ),
+            idempotent=True,
+            modified=False,
+        )
+
+    amount = payment.get("amount")
+    if amount is None:
+        return WebhookProcessResult(
+            accepted=True,
+            status="ignored",
+            detail="payment.failed missing amount.",
+            event=PAYMENT_FAILED_EVENT,
+            modified=False,
+        )
+
+    failure_code, failure_reason = _map_razorpay_failure(payment)
+    email = str(payment.get("email") or "").strip().lower()
+    if not email:
+        suffix = (razorpay_payment_id or "unknown")[-8:]
+        email = f"provider.{suffix}@recoverai.webhook"
+
+    name = str(
+        (payment.get("notes") or {}).get("customer_name")
+        or "Razorpay customer"
+    ).strip() or "Razorpay customer"
+
+    ingest_payload = {
+        "event": "payment.failed",
+        "amount": int(amount),
+        "currency": str(payment.get("currency") or "INR").upper(),
+        "customer": {
+            "name": name[:100],
+            "email": email[:255],
+            "phone": str(payment.get("contact") or "")[:20] or None,
+        },
+        "failure": {
+            "code": failure_code,
+            "reason": failure_reason,
+        },
+        "idempotency_key": (
+            f"rzp-failed-{razorpay_payment_id}"
+            if razorpay_payment_id
+            else None
+        ),
+    }
+
+    try:
+        result = ingest_payment_failed_event(
+            db,
+            ingest_payload,
+            event_source="LIVE_PROVIDER",
+        )
+    except ValueError as exc:
+        logger.info("webhook_payment_failed ingest rejected: %s", exc)
+        return WebhookProcessResult(
+            accepted=True,
+            status="ignored",
+            detail=f"payment.failed not ingested: {exc}",
+            event=PAYMENT_FAILED_EVENT,
+            modified=False,
+        )
+    return WebhookProcessResult(
+        accepted=True,
+        status="ingested",
+        detail=(
+            "Verified payment.failed ingested into the recovery pipeline. "
+            "Case is not RECOVERED."
+        ),
+        event=PAYMENT_FAILED_EVENT,
+        case_id=result.get("case_id"),
+        payment_id=result.get("payment_id"),
+        idempotent=bool(result.get("idempotent")),
+        modified=not bool(result.get("idempotent")),
+        meta={
+            "case_number": result.get("case_number"),
+            "case_status": result.get("case_status"),
+            "event_source": "LIVE_PROVIDER",
+        },
+    )
 
 
 # ============================================================
@@ -646,6 +813,20 @@ def apply_verified_payment_recovery(
     db.add(payment)
     db.add(case)
 
+    result = db.scalar(
+        select(RecoveryResult).where(
+            RecoveryResult.case_id == case.id
+        )
+    )
+    if result is not None:
+        cap = min(
+            int(payment.amount or 0) or int(result.original_amount or 0),
+            int(result.original_amount or payment.amount or 0),
+        )
+        if cap > 0 and int(result.recovered_amount or 0) > cap:
+            result.recovered_amount = cap
+            db.add(result)
+
     return WebhookProcessResult(
         accepted=True,
         status="recovered",
@@ -673,10 +854,20 @@ def process_razorpay_webhook(
     signature: str | None,
 ) -> WebhookProcessResult:
     """
-    Verify signature, then apply only supported success events.
+    Verify signature, ingest payment.failed, apply only captured success.
     """
 
-    if not is_webhook_secret_configured():
+    webhook_secret = RAZORPAY_WEBHOOK_SECRET
+    try:
+        from app.services.merchant_settings_service import stored_credentials
+
+        _, _, stored_webhook = stored_credentials(db)
+        if isinstance(stored_webhook, str) and stored_webhook:
+            webhook_secret = stored_webhook
+    except Exception:
+        pass
+
+    if not webhook_secret:
         logger.warning(
             "Razorpay webhook rejected: RAZORPAY_WEBHOOK_SECRET missing."
         )
@@ -693,7 +884,9 @@ def process_razorpay_webhook(
             detail="X-Razorpay-Signature header is required.",
         )
 
-    if not verify_webhook_signature(raw_body, signature):
+    if not verify_webhook_signature(
+        raw_body, signature, secret=webhook_secret
+    ):
         logger.warning("Razorpay webhook rejected: invalid signature.")
         return WebhookProcessResult(
             accepted=False,
@@ -723,6 +916,16 @@ def process_razorpay_webhook(
         payload = {}
 
     logger.info("webhook_event type=%s", event_name or "unknown")
+
+    if event_name == PAYMENT_FAILED_EVENT:
+        result = ingest_verified_payment_failed(db, payload)
+        logger.info(
+            "webhook_payment_failed status=%s modified=%s idempotent=%s",
+            result.status,
+            result.modified,
+            result.idempotent,
+        )
+        return result
 
     if event_name in SUPPORTED_NON_SUCCESS_EVENTS:
         logger.info(

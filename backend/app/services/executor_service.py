@@ -31,6 +31,17 @@ from app.services.payment_gateway_service import (
 )
 
 
+def _payment_link_expire_by(db: Session) -> int:
+    import time
+
+    from app.services.merchant_settings_service import (
+        payment_link_expiry_hours,
+    )
+
+    hours = payment_link_expiry_hours(db)
+    return int(time.time()) + (hours * 3600)
+
+
 # ============================================================
 # EXECUTE RETRY
 # ============================================================
@@ -249,6 +260,7 @@ def execute_communication(
             notes={
                 "case_number": case.case_number,
             },
+            expire_by=_payment_link_expire_by(db),
         )
 
         if link_result.success and link_result.payment_link_url:

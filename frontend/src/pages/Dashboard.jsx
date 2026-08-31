@@ -86,7 +86,8 @@ function CaseStatusDistribution({ overview }) {
         );
       })}
       <p className="text-xs text-ink-mute">
-        These counts come from live case statuses in the RecoverAI database.
+        Most working cases are In Progress. Active is only a short first status
+        before RecoverAI creates an action.
       </p>
     </div>
   );
@@ -273,6 +274,9 @@ function Dashboard() {
   }
 
   const hasCases = Number(overview.total_cases || 0) > 0;
+  const openRecoveryCases =
+    (Number(overview.active_cases) || 0) +
+    (Number(overview.in_progress_cases) || 0);
 
   return (
     <div className="page-enter space-y-8">
@@ -283,9 +287,7 @@ function Dashboard() {
             <p className="eyebrow">Recovery Operations</p>
             <h2 className="page-title">Dashboard</h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-mute">
-              A live snapshot of failed payments RecoverAI is working on —
-              how much money is exposed, how much came back, and what happened
-              recently. All numbers come from your real backend data.
+              Monitor payment recovery at a glance.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -323,7 +325,7 @@ function Dashboard() {
                 Payment integration
               </p>
               <p className="mt-0.5 text-xs text-ink-mute">
-                Razorpay TEST provider, webhook setup, and connection health
+                Connect Razorpay and check webhook setup
               </p>
             </div>
           </div>
@@ -348,7 +350,7 @@ function Dashboard() {
                 Live recovery event feed
               </p>
               <p className="mt-0.5 text-xs text-ink-mute">
-                Real-time recovery events from case and timeline APIs
+                Watch recovery events as they happen
               </p>
             </div>
           </div>
@@ -420,10 +422,10 @@ function Dashboard() {
             </div>
             <div>
               <p className="text-sm font-semibold text-ink">
-                Provider Event Console
+                Create demo event
               </p>
               <p className="mt-0.5 text-xs text-ink-mute">
-                Simulate payment-provider events entering RecoverAI (DEMO / TEST)
+                Create a demo failed payment to start recovery
               </p>
             </div>
           </div>
@@ -431,7 +433,7 @@ function Dashboard() {
             to="/event-console"
             className="inline-flex items-center gap-2 rounded-xl border border-sand/30 bg-sand-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-sand/50 hover:bg-sand-soft/70"
           >
-            Open event console
+            Create demo event
             <ArrowUpRight size={15} />
           </Link>
         </div>
@@ -502,9 +504,9 @@ function Dashboard() {
                 tone="info"
               />
               <StatCard
-                title="Active Cases"
-                value={overview.active_cases}
-                description="Cases waiting to move forward"
+                title="In recovery"
+                value={openRecoveryCases}
+                description="Open cases still being recovered"
               />
               <StatCard
                 title="Escalated Cases"

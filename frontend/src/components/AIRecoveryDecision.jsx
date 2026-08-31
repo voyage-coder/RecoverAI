@@ -59,8 +59,7 @@ function AIRecoveryDecision({ decision, loading, error }) {
             AI Recovery Decision
           </h3>
           <p className="mt-1 text-sm text-ink-mute">
-            Derived from diagnosis, model prediction, strategy evaluation, and
-            Safety Engine records — not fabricated copy.
+            Why the payment failed and what RecoverAI recommends.
           </p>
         </div>
         {decision.decision_state && (
@@ -82,7 +81,7 @@ function AIRecoveryDecision({ decision, loading, error }) {
           value={decision.root_cause || "—"}
         />
         <Field
-          label="Recovery probability"
+          label="AI prediction"
           mono
           value={
             decision.recovery_probability != null
@@ -104,7 +103,7 @@ function AIRecoveryDecision({ decision, loading, error }) {
           value={toLabel(decision.risk_level) || "—"}
         />
         <Field
-          label="Recommended strategy"
+          label="Recommended recovery method"
           value={toLabel(decision.selected_strategy) || "—"}
         />
         <Field

@@ -9,6 +9,7 @@ import {
   Radio,
   Plug,
   Terminal,
+  HeartPulse,
   X,
 } from "lucide-react";
 
@@ -16,7 +17,8 @@ const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard, end: true },
   { name: "Operations", href: "/operations", icon: Briefcase },
   { name: "Live Activity", href: "/live-activity", icon: Radio },
-  { name: "Event Console", href: "/event-console", icon: Terminal },
+  { name: "Create demo event", href: "/event-console", icon: Terminal },
+  { name: "Demo health", href: "/demo-health", icon: HeartPulse },
   { name: "Integrations", href: "/integrations", icon: Plug },
   { name: "Recovery Cases", href: "/cases", icon: CreditCard },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },

@@ -8,6 +8,7 @@ import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
 import PaymentEventSimulator from "./pages/PaymentEventSimulator";
 import EventConsole from "./pages/EventConsole";
+import DemoHealth from "./pages/DemoHealth";
 import BatchRecoveryDemo from "./pages/BatchRecoveryDemo";
 import Operations from "./pages/Operations";
 import LiveActivity from "./pages/LiveActivity";
@@ -25,6 +26,7 @@ function App() {
           <Route path="live-activity" element={<LiveActivity />} />
           <Route path="integrations" element={<Integrations />} />
           <Route path="event-console" element={<EventConsole />} />
+          <Route path="demo-health" element={<DemoHealth />} />
           <Route path="cases" element={<RecoveryCases />} />
           <Route path="cases/:caseId" element={<CaseDetails />} />
           <Route path="analytics" element={<Analytics />} />

@@ -422,7 +422,22 @@ export function buildLiveEventsForCase({
     );
   }
 
-  return events.filter((event) => event.timestamp && event.caseId);
+  return events
+    .filter((event) => event.timestamp && event.caseId)
+    .map((event) => ({
+      ...event,
+      sourceLabel:
+        upper(caseStatus) === "RECOVERED"
+          ? "Verified Webhook"
+          : caseItem?.event_source_label ||
+            (caseItem?.event_source === "LIVE_PROVIDER"
+              ? "Live Provider Event"
+              : "Demo Event"),
+      outcomeKind:
+        upper(caseStatus) === "RECOVERED"
+          ? "CONFIRMED_RECOVERY"
+          : "PREDICTED_RECOVERY",
+    }));
 }
 
 export function buildLiveEvents({

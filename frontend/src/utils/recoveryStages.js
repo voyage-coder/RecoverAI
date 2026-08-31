@@ -95,9 +95,6 @@ export function deriveRecoveryStages({
   const commActions = actions.filter((item) =>
     isCommStrategy(item.action_type)
   );
-  const retryActions = actions.filter((item) =>
-    isRetryStrategy(item.action_type)
-  );
   const latestAction = actions.length
     ? actions[actions.length - 1]
     : null;
@@ -141,7 +138,7 @@ export function deriveRecoveryStages({
   // 3. Strategy Selection
   const strategyStage = makeStage(
     "strategy_selection",
-    "Strategy Selection"
+    "Strategy Selected"
   );
   if (selectedStrategy || recoveryCase?.selected_strategy) {
     strategyStage.status = STAGE_STATUS.COMPLETED;
@@ -177,73 +174,52 @@ export function deriveRecoveryStages({
     safety.detail = "Awaiting safety evaluation";
   }
 
-  // 5. Recovery Action
-  const actionStage = makeStage("recovery_action", "Recovery Action");
+  // 5. Approval / Execution
+  const approvalStage = makeStage(
+    "approval_execution",
+    "Approval / Execution"
+  );
   if (latestAction) {
     const actionStatus = upper(latestAction.status);
     if (actionStatus === "EXECUTED") {
-      actionStage.status = STAGE_STATUS.COMPLETED;
+      approvalStage.status = STAGE_STATUS.COMPLETED;
+      approvalStage.detail =
+        latestAction.result_text ||
+        `${toLabel(latestAction.action_type)} executed`;
     } else if (actionStatus === "FAILED") {
-      actionStage.status = STAGE_STATUS.FAILED;
+      approvalStage.status = STAGE_STATUS.FAILED;
+      approvalStage.detail =
+        latestAction.result_text || "Action execution failed";
+    } else if (actionStatus === "BLOCKED") {
+      approvalStage.status = STAGE_STATUS.FAILED;
+      approvalStage.detail =
+        latestAction.result_text || "Blocked by Safety Engine";
+    } else if (
+      recoveryCase?.requires_approval ||
+      recoveryCase?.approval_state === "AWAITING_APPROVAL"
+    ) {
+      approvalStage.status = STAGE_STATUS.IN_PROGRESS;
+      approvalStage.detail =
+        recoveryCase?.next_step_detail ||
+        "Merchant approval required before execution";
     } else if (
       actionStatus === "PROCESSING" ||
       actionStatus === "PENDING"
     ) {
-      actionStage.status = STAGE_STATUS.IN_PROGRESS;
-    } else if (actionStatus === "BLOCKED") {
-      actionStage.status = STAGE_STATUS.FAILED;
+      approvalStage.status = STAGE_STATUS.IN_PROGRESS;
+      approvalStage.detail =
+        `${toLabel(latestAction.action_type)} is waiting`;
     }
-    actionStage.timestamp =
+    approvalStage.timestamp =
       latestAction.executed_at || latestAction.created_at;
-    actionStage.detail =
-      latestAction.result_text ||
-      `${toLabel(latestAction.action_type)} · attempt ${latestAction.attempt_number}`;
   } else if (safety.status === STAGE_STATUS.COMPLETED) {
-    actionStage.status = STAGE_STATUS.PENDING;
+    approvalStage.status = STAGE_STATUS.PENDING;
   }
 
-  // 6. Customer Communication
-  const communication = makeStage(
-    "customer_communication",
-    "Customer Communication"
-  );
-  if (communications.length > 0) {
-    communication.status = STAGE_STATUS.COMPLETED;
-    communication.timestamp =
-      communications[communications.length - 1].sent_at;
-    communication.detail = `${communications.length} outbound message(s) recorded`;
-  } else if (
-    commActions.some((item) => upper(item.status) === "EXECUTED")
-  ) {
-    communication.status = STAGE_STATUS.COMPLETED;
-    communication.timestamp = commActions.find(
-      (item) => upper(item.status) === "EXECUTED"
-    )?.executed_at;
-    communication.detail = "Communication action executed";
-  } else if (
-    commActions.some(
-      (item) =>
-        upper(item.status) === "PENDING" ||
-        upper(item.status) === "PROCESSING"
-    )
-  ) {
-    communication.status = STAGE_STATUS.IN_PROGRESS;
-    communication.detail = "Communication action in progress";
-  } else if (isCommStrategy(selectedType)) {
-    communication.status = STAGE_STATUS.PENDING;
-    communication.detail = "Communication strategy selected, not yet sent";
-  } else if (
-    strategyStage.status === STAGE_STATUS.COMPLETED &&
-    !isCommStrategy(selectedType)
-  ) {
-    communication.status = STAGE_STATUS.SKIPPED;
-    communication.detail = "Selected strategy does not require outreach";
-  }
-
-  // 7. Payment Recovery
-  const paymentRecovery = makeStage(
-    "payment_recovery",
-    "Payment Recovery"
+  // 6. Customer Payment
+  const customerPayment = makeStage(
+    "customer_payment",
+    "Customer Payment"
   );
   const paymentStatus = upper(payment?.status);
   const successAttempt = attempts.find(
@@ -251,49 +227,58 @@ export function deriveRecoveryStages({
   );
   const awaitingWebhook = gateway?.awaiting_webhook === true;
 
-  if (paymentStatus === "RECOVERED" || successAttempt) {
-    paymentRecovery.status = STAGE_STATUS.COMPLETED;
-    paymentRecovery.timestamp =
+  if (paymentStatus === "RECOVERED") {
+    customerPayment.status = STAGE_STATUS.COMPLETED;
+    customerPayment.timestamp =
       successAttempt?.created_at || result?.recovered_at;
-    paymentRecovery.detail =
-      paymentStatus === "RECOVERED"
-        ? "Payment marked recovered"
-        : "Successful payment attempt recorded";
+    customerPayment.detail = "Customer TEST payment completed";
   } else if (awaitingWebhook) {
-    paymentRecovery.status = STAGE_STATUS.IN_PROGRESS;
-    paymentRecovery.detail = "Awaiting Razorpay webhook confirmation";
-    paymentRecovery.timestamp = successAttempt?.created_at;
+    customerPayment.status = STAGE_STATUS.IN_PROGRESS;
+    customerPayment.detail =
+      "Waiting for the customer to complete TEST checkout";
   } else if (
-    retryActions.some((item) => upper(item.status) === "EXECUTED")
+    commActions.some((item) => upper(item.status) === "EXECUTED") ||
+    communications.length > 0
   ) {
-    const lastRetry = retryActions[retryActions.length - 1];
-    paymentRecovery.status = STAGE_STATUS.IN_PROGRESS;
-    paymentRecovery.timestamp =
-      lastRetry.executed_at || lastRetry.created_at;
-    paymentRecovery.detail =
-      lastRetry.result_text || toLabel(lastRetry.action_type);
-  } else if (
-    retryActions.some(
-      (item) =>
-        upper(item.status) === "PENDING" ||
-        upper(item.status) === "PROCESSING"
-    )
-  ) {
-    paymentRecovery.status = STAGE_STATUS.IN_PROGRESS;
-    paymentRecovery.detail = "Payment retry in progress";
-  } else if (isRetryStrategy(selectedType)) {
-    paymentRecovery.status = STAGE_STATUS.PENDING;
-    paymentRecovery.detail = "Retry strategy selected";
-  } else if (
-    strategyStage.status === STAGE_STATUS.COMPLETED &&
-    !isRetryStrategy(selectedType)
-  ) {
-    paymentRecovery.status = STAGE_STATUS.SKIPPED;
-    paymentRecovery.detail = "Recovery path does not include payment retry";
+    customerPayment.status = STAGE_STATUS.IN_PROGRESS;
+    customerPayment.detail =
+      "Customer was contacted — payment not confirmed yet";
+  } else if (isRetryStrategy(selectedType) || isCommStrategy(selectedType)) {
+    customerPayment.status = STAGE_STATUS.PENDING;
+    customerPayment.detail = "Customer payment has not started";
+  } else if (strategyStage.status === STAGE_STATUS.COMPLETED) {
+    customerPayment.status = STAGE_STATUS.PENDING;
   }
 
-  // 8. Final Result
-  const finalResult = makeStage("final_result", "Final Result");
+  // 7. Webhook Verified
+  const webhookStage = makeStage(
+    "webhook_verified",
+    "Webhook Verified"
+  );
+  const verified =
+    paymentStatus === "RECOVERED" ||
+    upper(recoveryCase?.status) === "RECOVERED" ||
+    gateway?.verified === true;
+  if (verified) {
+    webhookStage.status = STAGE_STATUS.COMPLETED;
+    webhookStage.timestamp =
+      result?.recovered_at || recoveryCase?.updated_at;
+    webhookStage.detail =
+      "Signature-verified payment.captured applied";
+  } else if (awaitingWebhook) {
+    webhookStage.status = STAGE_STATUS.IN_PROGRESS;
+    webhookStage.detail =
+      "Webhook not received yet — recovery is not confirmed";
+  } else if (customerPayment.status === STAGE_STATUS.IN_PROGRESS) {
+    webhookStage.status = STAGE_STATUS.PENDING;
+    webhookStage.detail = "Waiting for verified payment.captured";
+  }
+
+  // 8. Recovery Confirmed
+  const confirmed = makeStage(
+    "recovery_confirmed",
+    "Recovery Confirmed"
+  );
   const resultStatus = upper(result?.status);
   const caseStatus = upper(recoveryCase?.status);
 
@@ -301,40 +286,26 @@ export function deriveRecoveryStages({
     caseStatus === "RECOVERED" &&
     resultStatus === "FULLY_RECOVERED"
   ) {
-    finalResult.status = STAGE_STATUS.COMPLETED;
-    finalResult.timestamp = result?.recovered_at || result?.created_at;
-    finalResult.detail = `${formatINR(result.recovered_amount)} recovered · ${toLabel(
-      result.recovery_method
-    )}`;
+    confirmed.status = STAGE_STATUS.COMPLETED;
+    confirmed.timestamp = result?.recovered_at || result?.created_at;
+    confirmed.detail = `${formatINR(result.recovered_amount)} confirmed from verified webhook`;
   } else if (resultStatus === "PARTIALLY_RECOVERED") {
-    finalResult.status = STAGE_STATUS.COMPLETED;
-    finalResult.timestamp = result?.recovered_at || result?.created_at;
-    finalResult.detail = `${formatINR(result.recovered_amount)} of ${formatINR(
+    confirmed.status = STAGE_STATUS.IN_PROGRESS;
+    confirmed.timestamp = result?.recovered_at || result?.created_at;
+    confirmed.detail = `${formatINR(result.recovered_amount)} of ${formatINR(
       result.original_amount
-    )} recovered`;
-  } else if (resultStatus === "NOT_RECOVERED") {
-    finalResult.status = STAGE_STATUS.COMPLETED;
-    finalResult.timestamp = result?.created_at;
-    finalResult.detail = `${formatINR(
-      recoveryCase?.amount_at_risk ?? result.original_amount
-    )} remains at risk`;
+    )} recorded`;
   } else if (caseStatus === "CLOSED") {
-    finalResult.status = STAGE_STATUS.COMPLETED;
-    finalResult.timestamp = recoveryCase?.updated_at;
-    finalResult.detail = "Case closed";
+    confirmed.status = STAGE_STATUS.FAILED;
+    confirmed.detail = "Recovery stopped";
   } else if (caseStatus === "ESCALATED") {
-    finalResult.status = STAGE_STATUS.FAILED;
-    finalResult.timestamp = recoveryCase?.updated_at;
-    finalResult.detail =
-      recoveryCase?.current_step || "Escalated for human follow-up";
-  } else if (
-    caseStatus === "ACTIVE" ||
-    caseStatus === "IN_PROGRESS" ||
-    resultStatus === "PENDING"
-  ) {
-    finalResult.status = STAGE_STATUS.IN_PROGRESS;
-    finalResult.detail =
-      recoveryCase?.current_step || "Recovery pipeline running";
+    confirmed.status = STAGE_STATUS.FAILED;
+    confirmed.detail =
+      recoveryCase?.current_step || "Escalated — not confirmed recovered";
+  } else {
+    confirmed.status = STAGE_STATUS.PENDING;
+    confirmed.detail =
+      "Predicted recovery only until a verified webhook confirms it";
   }
 
   return [
@@ -342,10 +313,10 @@ export function deriveRecoveryStages({
     diagnosis,
     strategyStage,
     safety,
-    actionStage,
-    communication,
-    paymentRecovery,
-    finalResult,
+    approvalStage,
+    customerPayment,
+    webhookStage,
+    confirmed,
   ];
 }
 

@@ -48,6 +48,15 @@ export function formatDateTime(value) {
   }).format(date);
 }
 
+const PAYMENT_URL_PATTERN = /https?:\/\/[^\s<>"']+/i;
+
+export function extractPaymentLink(text) {
+  if (!text) return null;
+  const match = String(text).match(PAYMENT_URL_PATTERN);
+  if (!match) return null;
+  return match[0].replace(/[.,)]+$/, "");
+}
+
 export function formatRelativeTime(value) {
   if (!value) return "—";
 

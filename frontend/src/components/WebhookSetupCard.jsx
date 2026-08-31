@@ -52,29 +52,37 @@ function WebhookSetupCard({ status }) {
         How RecoverAI receives events
       </h3>
       <p className="mt-2 text-sm leading-relaxed text-ink-mute">
-        RecoverAI receives payment lifecycle events from the payment provider.
-        The verified Razorpay webhook confirms capture. Failure ingestion for
-        demos uses a provider-neutral event API.
+        Where failure and capture events arrive. Recovery is confirmed only
+        after a verified Razorpay webhook.
       </p>
 
       <div className="mt-5 space-y-3">
         <div className="rounded-xl border border-pine/15 bg-pine-soft/30 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-pine">
-            Recovery confirmation
+            Verified webhook — recovery confirmation
           </p>
           <p className="mt-1 text-sm text-ink">
-            Supported webhook event:{" "}
             <span className="font-mono text-xs">payment.captured</span>
+            {" — "}
+            only this verified event can mark RECOVERED
           </p>
         </div>
         <div className="rounded-xl border border-sand/25 bg-sand-soft/40 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-sand">
-            Recovery trigger (demo / provider-neutral)
+            Live provider event — recovery trigger
+          </p>
+          <p className="mt-1 text-sm text-ink">
+            <span className="font-mono text-xs">payment.failed</span>
+            {" webhook — ingested into the existing recovery pipeline"}
+          </p>
+        </div>
+        <div className="rounded-xl border border-ink/10 bg-mist-soft/50 px-4 py-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+            Demo event
           </p>
           <p className="mt-1 text-sm text-ink">
             <span className="font-mono text-xs">POST {failurePath}</span>
-            {" — "}
-            simulated payment failure ingestion (not a Razorpay webhook)
+            {" — Create demo event / simulator (not a Razorpay webhook)"}
           </p>
         </div>
       </div>

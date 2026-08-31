@@ -398,6 +398,13 @@ def process_payment(
 
     db.flush()
 
+    from app.services.recovery_mode_service import (
+        apply_merchant_recovery_mode,
+    )
+
+    apply_merchant_recovery_mode(db, case)
+    db.flush()
+
     return case
 
 def run_recover_ai(

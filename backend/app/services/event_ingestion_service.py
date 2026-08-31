@@ -155,6 +155,8 @@ def _get_or_create_event_product(db: Session) -> Product:
 def ingest_payment_failed_event(
     db: Session,
     payload: dict,
+    *,
+    event_source: str = "DEMO_EVENT",
 ) -> dict:
     """
     Record a simulated payment.failed event and start recovery.
@@ -242,6 +244,11 @@ def ingest_payment_failed_event(
         status="FAILED",
         failure_code=str(failure_data["code"]).strip()[:100],
         failure_reason=str(failure_data["reason"]).strip(),
+        event_source=(
+            "LIVE_PROVIDER"
+            if str(event_source).upper() == "LIVE_PROVIDER"
+            else "DEMO_EVENT"
+        ),
     )
     db.add(payment)
     db.flush()
@@ -295,6 +302,7 @@ def ingest_payment_failed_event(
         "payment_status": payment.status,
         "failure_code": payment.failure_code,
         "failure_reason": payment.failure_reason,
+        "event_source": getattr(payment, "event_source", "DEMO_EVENT"),
     }
 
 
@@ -455,6 +463,17 @@ def list_recent_provider_events(
                 "payment_status": payment.status,
                 "failure_code": payment.failure_code,
                 "failure_reason": payment.failure_reason,
+                "event_source": getattr(payment, "event_source", "DEMO_EVENT"),
+                "event_source_label": (
+                    "Verified Webhook"
+                    if case_status == "RECOVERED"
+                    else (
+                        "Live Provider Event"
+                        if getattr(payment, "event_source", None)
+                        == "LIVE_PROVIDER"
+                        else "Demo Event"
+                    )
+                ),
                 "idempotency_state": (
                     "evaluated_at_ingest"
                     " — keys are not stored; use Replay in the console "

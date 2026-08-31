@@ -10,7 +10,8 @@ from app.routes.webhook_routes import router as webhook_router
 from app.routes.event_routes import router as event_router
 from app.routes.integration_routes import router as integration_router
 from app.routes.customer_routes import router as customer_router
-from app.schema import CustomerRecoveryLink
+from app.routes.demo_routes import router as demo_router
+from app.schema import CustomerRecoveryLink, MerchantSettings
 
 app = FastAPI(
     title="RecoverAI API",
@@ -42,10 +43,38 @@ app.include_router(
     customer_router
 )
 
+app.include_router(
+    demo_router
+)
 
-# Ensure Phase 11 table exists even if alembic was not run (demo safety).
+
+# Ensure newer tables/columns exist even if alembic was not run (demo safety).
 try:
     CustomerRecoveryLink.__table__.create(bind=engine, checkfirst=True)
+except Exception:
+    pass
+
+try:
+    MerchantSettings.__table__.create(bind=engine, checkfirst=True)
+except Exception:
+    pass
+
+try:
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE payments ADD COLUMN IF NOT EXISTS "
+                "event_source VARCHAR(32) DEFAULT 'DEMO_EVENT'"
+            )
+        )
+        conn.execute(
+            text(
+                "ALTER TABLE recovery_actions ADD COLUMN IF NOT EXISTS "
+                "requires_approval BOOLEAN DEFAULT FALSE"
+            )
+        )
 except Exception:
     pass
 

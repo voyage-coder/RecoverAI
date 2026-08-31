@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import RazorpayTestCheckout from "./RazorpayTestCheckout";
+import PaymentLinkDisplay from "./PaymentLinkDisplay";
 import { toLabel } from "../utils/labels";
 
 function upper(value) {
@@ -58,9 +59,8 @@ function RecoveryOperationsPanel({
     if (pendingAction && !isTerminal) {
       ops.push({
         key: "execute",
-        label: `Execute ${toLabel(pendingAction.action_type)}`,
-        description:
-          "Runs the pending action through the existing executor and Safety Engine.",
+        label: "Run recommended action",
+        description: "Runs the pending action through Safety Engine.",
         primary: true,
         onClick: onExecutePending,
       });
@@ -77,9 +77,8 @@ function RecoveryOperationsPanel({
     ) {
       ops.push({
         key: "continue",
-        label: "Prepare next recovery action",
-        description:
-          "ML + Safety Engine selects the next strategy and creates an action.",
+        label: "Prepare next action",
+        description: "Creates the next recommended recovery action.",
         primary: !latestExecuted,
         onClick: onContinueRecovery,
       });
@@ -101,25 +100,20 @@ function RecoveryOperationsPanel({
     <div className="space-y-5">
       <div className="rounded-xl border border-skyline/20 bg-skyline-soft/30 px-4 py-3">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-skyline">
-          Responsibility split
+          Who does what
         </p>
         <ul className="mt-2 space-y-1 text-xs text-ink-mute">
           <li>
-            <span className="font-semibold text-ink">Merchant:</span> approve /
-            execute the recovery action and initiate the payment link or retry.
+            <span className="font-semibold text-ink">You:</span> run the
+            recommended action.
           </li>
           <li>
-            <span className="font-semibold text-ink">Customer:</span> receives
-            the link and completes payment — the merchant does not pay the bill.
+            <span className="font-semibold text-ink">Customer:</span> pays
+            with the payment link or checkout.
           </li>
           <li>
-            <span className="font-semibold text-ink">Razorpay:</span> processes
-            payment and emits payment.captured.
-          </li>
-          <li>
-            <span className="font-semibold text-ink">RecoverAI:</span> verifies
-            the webhook, matches the case, and marks recovered only after
-            verified capture.
+            <span className="font-semibold text-ink">RecoverAI:</span> marks
+            recovered only after a verified webhook.
           </li>
         </ul>
       </div>
@@ -137,8 +131,7 @@ function RecoveryOperationsPanel({
               "Not available"}
           </p>
           <p className="mt-2 text-xs text-ink-faint">
-            Only existing pending actions can be executed. There is no Force
-            Recover or Mark Paid control.
+            Recovery still needs a verified webhook if payment was started.
           </p>
         </div>
       )}
@@ -146,21 +139,18 @@ function RecoveryOperationsPanel({
       {awaitingWebhook && !isTerminal && (
         <div className="rounded-xl border border-sand/30 bg-sand-soft/50 px-4 py-3">
           <p className="text-sm font-semibold text-ink">
-            Awaiting customer payment
+            Waiting for customer payment
           </p>
           <p className="mt-1 text-sm text-ink-mute">
-            Payment link ready / order created. Customer payment is required.
-            Checkout success alone does not mark the case recovered — RecoverAI
-            waits for a signature-verified{" "}
-            <span className="font-mono text-xs">payment.captured</span> webhook
-            at{" "}
-            <span className="font-mono text-xs">
-              POST /api/webhooks/razorpay
-            </span>
-            .
+            Customer can pay with the payment link. Status updates after a
+            verified Razorpay webhook.
           </p>
         </div>
       )}
+
+      {checkoutConfig?.payment_link_url && !isTerminal ? (
+        <PaymentLinkDisplay url={checkoutConfig.payment_link_url} />
+      ) : null}
 
       {blockedAction && (
         <div className="rounded-xl border border-clay/25 bg-clay-soft/50 px-4 py-3">
@@ -168,7 +158,7 @@ function RecoveryOperationsPanel({
             <AlertTriangle size={16} className="mt-0.5 text-clay" />
             <div>
               <p className="text-sm font-semibold text-clay">
-                Action blocked by Safety Engine
+                Blocked by safety rules
               </p>
               <p className="mt-1 text-sm text-ink-mute">
                 {blockedAction.result_text ||
@@ -188,8 +178,7 @@ function RecoveryOperationsPanel({
             <StatusBadge value={pendingAction.status} />
           </div>
           <p className="mt-2 text-xs text-ink-mute">
-            Attempt #{pendingAction.attempt_number} · created by AI recovery
-            pipeline — execute only after confirmation
+            Attempt #{pendingAction.attempt_number} · confirm before running
           </p>
         </div>
       )}
@@ -258,8 +247,8 @@ function RecoveryOperationsPanel({
             Razorpay TEST recovery
           </p>
           <p className="mt-1 text-xs text-ink-mute">
-            Complete TEST payment as the customer would. Secrets stay on the
-            backend. Checkout success does not mark the case recovered.
+            Complete TEST payment as the customer. Checkout success does not
+            mark recovered.
           </p>
           <div className="mt-4">
             <RazorpayTestCheckout
@@ -286,10 +275,8 @@ function RecoveryOperationsPanel({
           Safety note
         </p>
         <p className="mt-1">
-          Retry, payment link, email, SMS, WhatsApp, and escalation are chosen
-          by ML + Safety Engine. Use Execute pending action to run the selected
-          strategy. After Razorpay TEST payment, wait for the webhook — do not
-          click Prepare next while awaiting customer payment.
+          After TEST payment, wait for the verified webhook. Do not prepare the
+          next action while waiting for the customer.
         </p>
       </div>
     </div>

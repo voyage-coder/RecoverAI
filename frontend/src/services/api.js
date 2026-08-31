@@ -128,14 +128,75 @@ export const getIntegrationStatus = async () => {
   return response.data;
 };
 
+export const getMerchantSettings = async () => {
+  const response = await api.get("/api/integrations/settings");
+  return response.data;
+};
+
+export const updateMerchantSettings = async (payload) => {
+  const response = await api.put("/api/integrations/settings", payload);
+  return response.data;
+};
+
+export const saveRazorpayCredentials = async (payload) => {
+  const response = await api.post(
+    "/api/integrations/razorpay-credentials",
+    payload
+  );
+  return response.data;
+};
+
+export const testRazorpayConnection = async () => {
+  const response = await api.post("/api/integrations/test-connection");
+  return response.data;
+};
+
+export const getDemoHealth = async () => {
+  const response = await api.get("/api/demo/health");
+  return response.data;
+};
+
+export const getDemoInventory = async () => {
+  const response = await api.get("/api/demo/inventory");
+  return response.data;
+};
+
+export const resetDemoData = async (confirmation) => {
+  const response = await api.post("/api/demo/reset", { confirmation });
+  return response.data;
+};
+
 export function parseApiError(error) {
   if (!error?.response) {
-    return "RecoverAI API is unavailable. Make sure the backend is running on port 8000.";
+    return "Backend unavailable — start the RecoverAI API on port 8000.";
   }
 
   const detail = error.response.data?.detail;
+  const status = error.response.status;
 
   if (typeof detail === "string") {
+    const lower = detail.toLowerCase();
+    if (lower.includes("razorpay") || lower.includes("connection test")) {
+      return `Razorpay unavailable — ${detail}`;
+    }
+    if (lower.includes("approval")) {
+      return `Approval required — ${detail}`;
+    }
+    if (lower.includes("safety") || lower.includes("blocked")) {
+      return `Safety blocked — ${detail}`;
+    }
+    if (lower.includes("webhook") && lower.includes("not")) {
+      return `Webhook not received — ${detail}`;
+    }
+    if (lower.includes("awaiting") || lower.includes("customer")) {
+      return `Payment awaiting customer — ${detail}`;
+    }
+    if (lower.includes("closed") || lower.includes("stopped")) {
+      return `Recovery stopped — ${detail}`;
+    }
+    if (lower.includes("retry unavailable") || lower.includes("no pending")) {
+      return `Retry unavailable — ${detail}`;
+    }
     return detail;
   }
 
@@ -145,11 +206,16 @@ export function parseApiError(error) {
       .join(" · ");
   }
 
-  if (error.response.status === 422) {
+  if (status === 401) {
+    return "Webhook signature was invalid or missing.";
+  }
+  if (status === 503) {
+    return "Backend or webhook configuration is incomplete.";
+  }
+  if (status === 422) {
     return "Invalid request — check amount, customer, and failure details.";
   }
-
-  if (error.response.status >= 500) {
+  if (status >= 500) {
     return "RecoverAI server error. Try again in a moment.";
   }
 

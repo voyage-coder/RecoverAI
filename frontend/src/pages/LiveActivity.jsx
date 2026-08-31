@@ -152,9 +152,7 @@ function LiveActivity() {
             </div>
             <h2 className="page-title">Live Activity</h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-mute">
-              Recovery events derived from live case, timeline, and payment
-              APIs — polled every {LIVE_POLL_INTERVAL_MS / 1000}s. No fabricated
-              stream.
+              Watch recovery events as they happen.
             </p>
             {lastUpdated && (
               <p className="mt-2 text-xs text-ink-faint">
@@ -192,11 +190,10 @@ function LiveActivity() {
       <section className="panel p-5 sm:p-6">
         <div className="mb-5">
           <h3 className="font-display text-xl font-medium text-ink">
-            What needs attention now
+            What needs attention
           </h3>
           <p className="mt-1 text-sm text-ink-mute">
-            ESCALATED · ACTIVE · IN_PROGRESS · awaiting customer payment —
-            from real case and payment API state
+            Cases that need review or customer payment.
           </p>
         </div>
 

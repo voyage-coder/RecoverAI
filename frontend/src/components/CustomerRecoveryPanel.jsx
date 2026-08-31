@@ -77,10 +77,10 @@ function CustomerRecoveryPanel({ caseId, caseStatus }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
-            Customer Recovery
+            Pay as customer
           </p>
           <p className="mt-1 text-sm text-ink-mute">
-            Secure customer payment page — does not mark RECOVERED from the UI
+            Generate a secure payment link for this case.
           </p>
         </div>
         {status?.status && (
@@ -110,7 +110,7 @@ function CustomerRecoveryPanel({ caseId, caseStatus }) {
       {fullUrl && (
         <div className="rounded-xl border border-pine/20 bg-pine-soft/30 px-4 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-pine">
-            Recovery link (copy now — shown once)
+            Recovery link
           </p>
           <p className="mt-2 break-all font-mono text-xs text-ink">{fullUrl}</p>
         </div>
@@ -129,8 +129,8 @@ function CustomerRecoveryPanel({ caseId, caseStatus }) {
             <Link2 size={15} />
           )}
           {status?.has_active_link || recoveryPath
-            ? "Regenerate recovery link"
-            : "Generate customer recovery link"}
+            ? "Regenerate payment link"
+            : "Generate payment link"}
         </button>
 
         {fullUrl && (
@@ -141,7 +141,7 @@ function CustomerRecoveryPanel({ caseId, caseStatus }) {
               className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-4 py-2.5 text-sm font-semibold text-ink"
             >
               <Copy size={15} />
-              {copied ? "Copied" : "Copy recovery link"}
+              {copied ? "Copied" : "Copy link"}
             </button>
             <a
               href={fullUrl}
@@ -149,7 +149,7 @@ function CustomerRecoveryPanel({ caseId, caseStatus }) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 rounded-xl border border-pine/30 bg-pine-soft/40 px-4 py-2.5 text-sm font-semibold text-pine"
             >
-              Open customer recovery page
+              Pay as customer
               <ExternalLink size={14} />
             </a>
           </>

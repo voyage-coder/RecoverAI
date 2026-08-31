@@ -26,7 +26,7 @@ from app.services.recovery_loop_service import process_recovery_loop
 from app.services.payment_details_service import get_case_payment_details
 from app.services.payment_gateway_service import (
     MODE_RAZORPAY_TEST,
-    RAZORPAY_KEY_ID,
+    get_razorpay_public_key_id,
     is_razorpay_configured,
 )
 
@@ -167,7 +167,17 @@ def execute_pending_action_for_case(
 
         raise ValueError("no_pending_action")
 
-    action = execute_action(db, pending)
+    if pending.requires_approval and pending.status == ActionStatus.PENDING:
+        # Merchant hitting this endpoint is the approval. Do not auto-run
+        # approval-required actions from any other path.
+        pass
+
+    try:
+        action = execute_action(db, pending)
+    except ValueError as exc:
+        if str(exc) == "action_already_terminal":
+            raise ValueError("action_already_terminal") from exc
+        raise
     db.flush()
 
     return {
@@ -420,7 +430,7 @@ def get_checkout_config_for_case(
     payment_status = str(payment.get("status") or "").upper()
 
     razorpay_test = is_razorpay_configured()
-    public_key = RAZORPAY_KEY_ID if razorpay_test else None
+    public_key = get_razorpay_public_key_id() if razorpay_test else None
 
     checkout_available = bool(
         (order_id and razorpay_test and payment_status != "RECOVERED")

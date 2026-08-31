@@ -5,6 +5,7 @@ const LABEL_MAP = {
   RECOVERED: "Recovered",
   ESCALATED: "Escalated",
   CLOSED: "Closed",
+  BLOCKED: "Blocked by safety rules",
 
   // Failure categories
   INSUFFICIENT_FUNDS: "Insufficient Funds",
@@ -19,7 +20,7 @@ const LABEL_MAP = {
   // Strategies
   IMMEDIATE_RETRY: "Immediate Retry",
   RETRY_AFTER_DELAY: "Retry After Delay",
-  SEND_PAYMENT_LINK: "Send Payment Link",
+  SEND_PAYMENT_LINK: "Send payment link",
   SEND_EMAIL_REMINDER: "Send Email Reminder",
   SEND_SMS_REMINDER: "Send SMS Reminder",
   SEND_WHATSAPP_MESSAGE: "Send WhatsApp Message",
@@ -32,7 +33,6 @@ const LABEL_MAP = {
   PROCESSING: "Processing",
   EXECUTED: "Executed",
   FAILED: "Failed",
-  BLOCKED: "Blocked",
 
   // Recovery result
   PARTIALLY_RECOVERED: "Partially Recovered",

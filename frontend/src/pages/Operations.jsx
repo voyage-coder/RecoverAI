@@ -6,12 +6,14 @@ import LoadingState, {
   ErrorState,
   EmptyState,
 } from "../components/LoadingState";
-import { getRecoveryCases } from "../services/api";
+import { getRecoveryCases, executePendingRecoveryAction, parseApiError } from "../services/api";
 import { formatINR } from "../utils/format";
 import { toLabel } from "../utils/labels";
+import OriginBadges from "../components/OriginBadges";
 
 const FILTERS = [
   { key: "all", label: "All" },
+  { key: "awaiting_approval", label: "Awaiting approval" },
   { key: "needs_attention", label: "Needs Attention" },
   { key: "in_recovery", label: "In Recovery" },
   { key: "recovered", label: "Recovered" },
@@ -29,8 +31,9 @@ function upper(value) {
   return String(value || "").toUpperCase();
 }
 
-function queueForStatus(status) {
-  const key = upper(status);
+function queueForStatus(item) {
+  if (item.approval_state === "AWAITING_APPROVAL") return "awaiting_approval";
+  const key = upper(item.status);
   if (key === "ESCALATED") return "needs_attention";
   if (key === "ACTIVE" || key === "IN_PROGRESS") return "in_recovery";
   if (key === "RECOVERED") return "recovered";
@@ -46,8 +49,12 @@ function priorityFromRisk(riskLevel) {
   return risk || "Not available";
 }
 
-function OperationsCaseCard({ item }) {
+function OperationsCaseCard({ item, onExecute, executingId }) {
   const priority = priorityFromRisk(item.risk_level);
+  const canExecute =
+    item.approval_state === "AWAITING_APPROVAL" ||
+    item.approval_state === "READY_TO_EXECUTE";
+  const isRecovered = upper(item.status) === "RECOVERED";
 
   return (
     <div className="rounded-xl border border-ink/8 bg-mist-soft/50 px-4 py-4 transition hover:border-ink/15 hover:bg-white">
@@ -69,6 +76,15 @@ function OperationsCaseCard({ item }) {
                     : "success"
               }
             />
+            {item.event_source_label && (
+              <OriginBadges
+                eventSource={item.event_source}
+                eventSourceLabel={item.event_source_label}
+                outcomeKind={item.outcome_kind}
+                webhookAuthorityLabel={item.webhook_authority_label}
+                recovered={upper(item.status) === "RECOVERED"}
+              />
+            )}
           </div>
           <p className="mt-2 text-sm text-ink-mute">
             {toLabel(item.failure_category)}
@@ -82,8 +98,28 @@ function OperationsCaseCard({ item }) {
 
       <div className="mt-4 grid gap-2 text-xs text-ink-mute sm:grid-cols-2 lg:grid-cols-3">
         <p>
+          Recommended:{" "}
+          <span className="text-ink">
+            {item.recommended_action
+              ? toLabel(item.recommended_action)
+              : item.selected_strategy
+                ? toLabel(item.selected_strategy)
+                : "Not available"}
+          </span>
+        </p>
+        <p>
           Risk:{" "}
           <span className="text-ink">{toLabel(item.risk_level)}</span>
+        </p>
+        <p>
+          Safety:{" "}
+          <span className="text-ink">{item.safety_decision || "—"}</span>
+        </p>
+        <p>
+          Approval:{" "}
+          <span className="text-ink">
+            {toLabel(item.approval_state) || "—"}
+          </span>
         </p>
         <p>
           Recovery probability:{" "}
@@ -125,7 +161,13 @@ function OperationsCaseCard({ item }) {
         </p>
       </div>
 
-      <div className="mt-4">
+      {item.next_step_detail && (
+        <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs text-ink-mute">
+          Next: {item.next_step_label || "Review"} — {item.next_step_detail}
+        </p>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <Link
           to={`/cases/${item.id}`}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-pine hover:underline"
@@ -133,6 +175,18 @@ function OperationsCaseCard({ item }) {
           Review case
           <ArrowUpRight size={12} />
         </Link>
+        {canExecute && !isRecovered && (
+          <button
+            type="button"
+            disabled={executingId === item.id}
+            onClick={() => onExecute(item.id)}
+            className="inline-flex items-center rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+          >
+            {item.approval_state === "AWAITING_APPROVAL"
+              ? "Approve & run"
+              : "Run recommended action"}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -145,6 +199,8 @@ function Operations() {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState("newest");
+  const [executingId, setExecutingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const loadCases = useCallback(async ({ soft = false } = {}) => {
     if (soft) setRefreshing(true);
@@ -156,7 +212,7 @@ function Operations() {
       setCases(data || []);
     } catch (err) {
       console.error(err);
-      setError("Unable to connect to RecoverAI API.");
+      setError(parseApiError(err));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -170,13 +226,14 @@ function Operations() {
   const counts = useMemo(() => {
     const next = {
       all: cases.length,
+      awaiting_approval: 0,
       needs_attention: 0,
       in_recovery: 0,
       recovered: 0,
       stopped: 0,
     };
     cases.forEach((item) => {
-      const q = queueForStatus(item.status);
+      const q = queueForStatus(item);
       if (next[q] != null) next[q] += 1;
     });
     return next;
@@ -185,7 +242,7 @@ function Operations() {
   const visibleCases = useMemo(() => {
     let list = [...cases];
     if (filter !== "all") {
-      list = list.filter((item) => queueForStatus(item.status) === filter);
+      list = list.filter((item) => queueForStatus(item) === filter);
     }
 
     list.sort((a, b) => {
@@ -206,6 +263,23 @@ function Operations() {
 
     return list;
   }, [cases, filter, sortBy]);
+
+  const handleExecute = async (caseId) => {
+    setExecutingId(caseId);
+    setActionError(null);
+    try {
+      const result = await executePendingRecoveryAction(caseId);
+      if (result?.blocked) {
+        setActionError(result.result_text || "Action blocked by Safety Engine.");
+      }
+      await loadCases({ soft: true });
+    } catch (err) {
+      console.error(err);
+      setActionError(parseApiError(err));
+    } finally {
+      setExecutingId(null);
+    }
+  };
 
   const exposure = useMemo(
     () =>
@@ -232,8 +306,7 @@ function Operations() {
             <p className="eyebrow">Merchant desk</p>
             <h2 className="page-title">Action Center</h2>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-mute">
-              Prioritize recovery work by risk, amount, and queue. All values
-              come from live recovery cases — no fabricated metrics.
+              Review failed payments and take action.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -337,6 +410,10 @@ function Operations() {
         </div>
       </section>
 
+      {actionError && (
+        <p className="text-sm font-medium text-clay">{actionError}</p>
+      )}
+
       {cases.length === 0 ? (
         <EmptyState message="No recovery cases yet. Simulate a payment failure or wait for inbound events." />
       ) : visibleCases.length === 0 ? (
@@ -344,7 +421,12 @@ function Operations() {
       ) : (
         <section className="space-y-3">
           {visibleCases.map((item) => (
-            <OperationsCaseCard key={item.id} item={item} />
+            <OperationsCaseCard
+              key={item.id}
+              item={item}
+              onExecute={handleExecute}
+              executingId={executingId}
+            />
           ))}
         </section>
       )}

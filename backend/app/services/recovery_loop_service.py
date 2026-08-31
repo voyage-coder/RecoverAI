@@ -175,6 +175,12 @@ def process_recovery_loop(
 
     db.flush()
 
+    from app.services.recovery_mode_service import (
+        apply_merchant_recovery_mode,
+    )
+
+    apply_merchant_recovery_mode(db, case, auto_execute=False)
+
     return action
 
 

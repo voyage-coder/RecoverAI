@@ -126,6 +126,7 @@ function RecoveryCases() {
           <p className="eyebrow">Recovery Pipeline</p>
           <h2 className="page-title">Recovery Cases</h2>
           <p className="mt-2 text-sm text-ink-mute">
+            A failed payment being recovered.{" "}
             <span className="font-mono text-ink">{filteredCases.length}</span> of{" "}
             <span className="font-mono">{cases.length}</span> cases in view
           </p>

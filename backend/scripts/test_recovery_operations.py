@@ -15,8 +15,9 @@ from sqlalchemy import select
 
 from app.database import SessionLocal
 from app.main import app
-from app.schema import RecoveryAction, ActionStatus
+from app.schema import RecoveryAction, ActionStatus, RecoveryMode
 from app.services.event_ingestion_service import ingest_payment_failed_event
+from app.services.merchant_settings_service import get_or_create_settings
 
 
 class Report:
@@ -41,6 +42,12 @@ def main():
     db = SessionLocal()
 
     batch_id = str(uuid4())
+    settings = get_or_create_settings(db)
+    settings.recovery_mode = RecoveryMode.MANUAL
+    settings.automatic_recovery_enabled = False
+    db.add(settings)
+    db.commit()
+
     ingest = ingest_payment_failed_event(
         db,
         {

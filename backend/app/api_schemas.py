@@ -41,6 +41,19 @@ class RecoveryCaseResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    event_source: Optional[str] = None
+    event_source_label: Optional[str] = None
+    webhook_authority_label: Optional[str] = None
+    outcome_kind: Optional[str] = None
+    recommended_action: Optional[str] = None
+    approval_state: Optional[str] = None
+    safety_decision: Optional[str] = None
+    requires_approval: Optional[bool] = None
+    policy_reason: Optional[str] = None
+    next_step_code: Optional[str] = None
+    next_step_label: Optional[str] = None
+    next_step_detail: Optional[str] = None
+
 
 # ============================================================
 # STRATEGY
@@ -275,6 +288,19 @@ class RecoveryCaseListResponse(BaseModel):
 
     created_at: datetime
 
+    event_source: Optional[str] = None
+    event_source_label: Optional[str] = None
+    outcome_kind: Optional[str] = None
+    recommended_action: Optional[str] = None
+    approval_state: Optional[str] = None
+    safety_decision: Optional[str] = None
+    requires_approval: Optional[bool] = None
+    policy_reason: Optional[str] = None
+    webhook_authority_label: Optional[str] = None
+    next_step_code: Optional[str] = None
+    next_step_label: Optional[str] = None
+    next_step_detail: Optional[str] = None
+
 
 # ============================================================
 # TIMELINE
@@ -395,6 +421,7 @@ class PaymentEventResponse(BaseModel):
     payment_status: Optional[str] = None
     failure_code: Optional[str] = None
     failure_reason: Optional[str] = None
+    event_source: Optional[str] = None
 
 
 class EventCapabilityItem(BaseModel):
@@ -427,6 +454,8 @@ class RecentProviderEventItem(BaseModel):
     payment_status: Optional[str] = None
     failure_code: Optional[str] = None
     failure_reason: Optional[str] = None
+    event_source: Optional[str] = None
+    event_source_label: Optional[str] = None
     idempotency_state: str
 
 
@@ -531,4 +560,51 @@ class CustomerRecoveryResponse(BaseModel):
     expires_at: str
     test_mode: bool = True
     checkout: CustomerCheckoutSafe
+
+
+# ============================================================
+# MERCHANT SETTINGS / ONBOARDING
+# ============================================================
+
+class MerchantPolicyUpdateRequest(BaseModel):
+
+    recovery_mode: Optional[str] = None
+    automatic_recovery_enabled: Optional[bool] = None
+    max_automatic_recovery_amount: Optional[int] = Field(default=None, gt=0)
+    max_retry_attempts: Optional[int] = Field(default=None, ge=0)
+    payment_link_expiry_hours: Optional[int] = Field(default=None, gt=0)
+    high_value_approval_threshold: Optional[int] = Field(default=None, gt=0)
+
+
+class RazorpayCredentialsRequest(BaseModel):
+
+    key_id: Optional[str] = None
+    key_secret: Optional[str] = None
+    webhook_secret: Optional[str] = None
+
+
+class MerchantSettingsResponse(BaseModel):
+
+    recovery_mode: str
+    automatic_recovery_enabled: bool
+    max_automatic_recovery_amount: int
+    max_retry_attempts: int
+    payment_link_expiry_hours: int
+    high_value_approval_threshold: int
+    razorpay_key_id_configured: bool
+    razorpay_key_id_hint: Optional[str] = None
+    webhook_secret_configured: bool
+    key_secret_configured: bool
+    credentials_last_tested_at: Optional[str] = None
+    credentials_last_test_ok: Optional[bool] = None
+    credentials_last_test_detail: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class ConnectionTestResponse(BaseModel):
+
+    ok: bool
+    mode: str
+    detail: str
+    secrets_returned: bool = False
 

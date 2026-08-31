@@ -289,6 +289,8 @@ function EventConsole() {
       payment_status: row.payment_status,
       failure_code: row.failure_code,
       failure_reason: row.failure_reason,
+      event_source: row.event_source,
+      event_source_label: row.event_source_label,
       idempotent: null,
       idempotency_state: row.idempotency_state,
       message: null,
@@ -300,12 +302,10 @@ function EventConsole() {
     <div className="page-enter space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="eyebrow">Provider infrastructure</p>
-          <h2 className="page-title">Provider Event Console</h2>
+          <p className="eyebrow">Demo tools</p>
+          <h2 className="page-title">Create demo event</h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-mute">
-            Simulate payment-provider events entering RecoverAI. This is a{" "}
-            <span className="font-semibold text-ink-soft">DEMO / TEST</span>{" "}
-            environment — not a live Razorpay webhook inbox.
+            Create a demo failed payment here to start recovery.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -329,8 +329,7 @@ function EventConsole() {
       <div className="rounded-xl border border-sand/30 bg-sand-soft/40 px-4 py-3 text-sm text-ink-soft">
         <span className="font-semibold text-ink">Environment: DEMO / TEST</span>
         <span className="mx-2 text-ink/25">·</span>
-        Provider retries are safe — RecoverAI does not duplicate the recovery
-        case when the same idempotency key is replayed.
+        Same event replayed with the same key will not create a duplicate case.
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
@@ -339,13 +338,11 @@ function EventConsole() {
             <div className="flex items-center gap-2">
               <Terminal size={16} className="text-ink-mute" />
               <h3 className="font-display text-xl font-medium text-ink">
-                Send Payment Event
+                Create a demo event
               </h3>
             </div>
             <p className="mt-1 text-sm text-ink-mute">
-              payment.failed uses{" "}
-              <span className="font-mono text-xs">POST /api/events/payment</span>
-              . Other types are simulation-only and never mark RECOVERED.
+              Choose payment.failed to create a demo recovery case.
             </p>
           </div>
 
@@ -536,7 +533,9 @@ function EventConsole() {
                 ) : (
                   <>
                     <Zap size={16} />
-                    {isFailedEvent ? "Send Event" : "Acknowledge (no mutation)"}
+                    {isFailedEvent
+                      ? "Create demo event"
+                      : "Acknowledge (no mutation)"}
                   </>
                 )}
               </button>
@@ -571,7 +570,7 @@ function EventConsole() {
               Latest Event
             </p>
             {!latest ? (
-              <EmptyState message="Send a provider event to see the live API response." />
+              <EmptyState message="Create a demo event to see the response." />
             ) : (
               <div className="mt-4 space-y-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -663,9 +662,8 @@ function EventConsole() {
           <div className="rounded-xl border border-pine/15 bg-pine-soft/25 px-4 py-3 text-sm text-ink-soft">
             <p className="font-semibold text-ink">Recovery journey</p>
             <p className="mt-1 text-xs leading-relaxed">
-              Provider event → recovery case → diagnosis → strategy → merchant
-              execute → customer recovery link → Razorpay TEST payment →
-              verified webhook → RECOVERED. The console never sets RECOVERED.
+              Create demo event → open case → run recommended action → customer pays
+              → verified webhook → recovered.
             </p>
           </div>
         </section>
@@ -675,7 +673,7 @@ function EventConsole() {
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink/8 px-5 py-4 sm:px-6">
           <div>
             <h3 className="font-display text-xl font-medium text-ink">
-              Event History
+              Recent demo events
             </h3>
             <p className="mt-1 text-xs text-ink-mute">
               {recent?.note ||
@@ -693,11 +691,11 @@ function EventConsole() {
         </div>
 
         {historyLoading ? (
-          <LoadingState message="Loading recent provider events…" />
+          <LoadingState message="Loading recent demo events…" />
         ) : historyError ? (
           <div className="px-5 py-6 text-sm text-clay">{historyError}</div>
         ) : historyRows.length === 0 && sessionRows.length === 0 ? (
-          <EmptyState message="No provider failure events recorded yet." />
+          <EmptyState message="No demo events recorded yet." />
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -731,7 +729,7 @@ function EventConsole() {
                         {row.event}
                       </button>
                       <p className="mt-0.5 text-[10px] uppercase tracking-wide text-ink-faint">
-                        Session
+                        Session · Demo Event
                       </p>
                     </td>
                     <td className="px-3 py-3 text-xs text-ink-mute">
@@ -797,7 +795,10 @@ function EventConsole() {
                         {row.event}
                       </button>
                       <p className="mt-0.5 text-[10px] uppercase tracking-wide text-ink-faint">
-                        Backend
+                        {row.event_source_label ||
+                          (row.event_source === "LIVE_PROVIDER"
+                            ? "Live Provider Event"
+                            : "Demo Event")}
                       </p>
                     </td>
                     <td className="px-3 py-3 text-xs text-ink-mute">

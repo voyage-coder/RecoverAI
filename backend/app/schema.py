@@ -98,6 +98,17 @@ class PromiseStatus(str, Enum):
     BROKEN = "BROKEN"
 
 
+class RecoveryMode(str, Enum):
+    AUTOMATIC = "AUTOMATIC"
+    APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
+    MANUAL = "MANUAL"
+
+
+class PaymentEventSource(str, Enum):
+    DEMO_EVENT = "DEMO_EVENT"
+    LIVE_PROVIDER = "LIVE_PROVIDER"
+
+
 class ActorType(str, Enum):
     AI_AGENT = "AI_AGENT"
     SYSTEM = "SYSTEM"
@@ -342,6 +353,12 @@ class Payment(Base):
     failure_reason: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
+    )
+
+    event_source: Mapped[str] = mapped_column(
+        String(32),
+        default=PaymentEventSource.DEMO_EVENT.value,
+        nullable=False,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -714,6 +731,12 @@ class RecoveryAction(Base):
     result_text: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
+    )
+
+    requires_approval: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -1089,4 +1112,98 @@ class CustomerRecoveryLink(Base):
     recovery_case = relationship(
         "RecoveryCase",
         back_populates="customer_recovery_links",
+    )
+
+
+# ============================================================
+# MERCHANT SETTINGS (singleton)
+# ============================================================
+
+class MerchantSettings(Base):
+    """
+    Merchant recovery policy and TEST gateway credentials.
+
+    API secrets are stored backend-only and must never be serialized
+    to merchant-facing API responses.
+    """
+
+    __tablename__ = "merchant_settings"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default="default",
+    )
+
+    recovery_mode: Mapped[RecoveryMode] = mapped_column(
+        SQLEnum(RecoveryMode, native_enum=False, length=32),
+        default=RecoveryMode.MANUAL,
+        nullable=False,
+    )
+
+    automatic_recovery_enabled: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    max_automatic_recovery_amount: Mapped[int] = mapped_column(
+        Integer,
+        default=500000,
+        nullable=False,
+    )
+
+    max_retry_attempts: Mapped[int] = mapped_column(
+        Integer,
+        default=3,
+        nullable=False,
+    )
+
+    payment_link_expiry_hours: Mapped[int] = mapped_column(
+        Integer,
+        default=72,
+        nullable=False,
+    )
+
+    high_value_approval_threshold: Mapped[int] = mapped_column(
+        Integer,
+        default=1000000,
+        nullable=False,
+    )
+
+    razorpay_key_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    razorpay_key_secret: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    razorpay_webhook_secret: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    credentials_last_tested_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )
+
+    credentials_last_test_ok: Mapped[bool | None] = mapped_column(
+        Boolean,
+        nullable=True,
+    )
+
+    credentials_last_test_detail: Mapped[str | None] = mapped_column(
+        String(240),
+        nullable=True,
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
     )
