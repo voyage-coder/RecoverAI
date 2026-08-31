@@ -1,8 +1,26 @@
+# API
 fastapi
 uvicorn
+pydantic
+
+# Database
 sqlalchemy
 psycopg2-binary
+alembic
+
+# Config
 python-dotenv
-pydantic
-google-genai
+
+# Payments
 razorpay
+
+# LLM (Gemini)
+google-genai
+
+# ML recovery predictor
+scikit-learn
+pandas
+joblib
+
+# Tests (FastAPI TestClient)
+httpx
