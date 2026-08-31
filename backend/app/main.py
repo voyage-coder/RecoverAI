@@ -1,5 +1,3 @@
-import os
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -22,17 +20,20 @@ app = FastAPI(
     version="0.1.0"
 )
 
-_cors_origins = [
-    origin.strip()
-    for origin in os.getenv("CORS_ORIGINS", "*").split(",")
-    if origin.strip()
-]
+# Browser apps (Vercel, local Vite) call this API on another origin.
+# Always allow them. A wrong CORS_ORIGINS env must not block the demo.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins or ["*"],
+    allow_origins=["*"],
+    allow_origin_regex=(
+        r"https://([a-z0-9-]+\.)*vercel\.app|"
+        r"http://(localhost|127\.0\.0\.1):\d+"
+    ),
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
 )
 
 app.include_router(
