@@ -3,9 +3,10 @@ import axios from "axios";
 // Prefer VITE_API_URL when set.
 // In local Vite dev, default to same-origin so /api is proxied (avoids CORS).
 // In production, point at the FastAPI server unless overridden.
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.DEV ? "" : "http://127.0.0.1:8000");
+// const API_BASE_URL =
+//   import.meta.env.VITE_API_URL ||
+//   (import.meta.env.DEV ? "" : "http://127.0.0.1:8000");
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const api = axios.create({
   baseURL: API_BASE_URL,
