@@ -11,6 +11,7 @@ from app.services.demo_service import (
     demo_health,
     demo_inventory,
     reset_demo_data,
+    simulate_notification,
 )
 
 
@@ -22,6 +23,11 @@ router = APIRouter(
 
 class DemoResetRequest(BaseModel):
     confirmation: str
+
+
+class DemoNotifyRequest(BaseModel):
+    case_id: str
+    channel: str
 
 
 @router.get("/health")
@@ -38,6 +44,25 @@ def get_demo_health(db: Session = Depends(get_db)):
 @router.get("/inventory")
 def get_demo_inventory(db: Session = Depends(get_db)):
     return demo_inventory(db)
+
+
+@router.post("/notify")
+def post_demo_notify(
+    body: DemoNotifyRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        result = simulate_notification(db, body.case_id, body.channel)
+        db.commit()
+        return result
+    except ValueError as exc:
+        db.rollback()
+        message = str(exc)
+        status = 404 if "not found" in message.lower() else 400
+        raise HTTPException(status_code=status, detail=message) from exc
+    except Exception:
+        db.rollback()
+        raise
 
 
 @router.post("/reset")

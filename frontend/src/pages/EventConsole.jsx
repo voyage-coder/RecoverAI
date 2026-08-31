@@ -20,6 +20,7 @@ import {
   getRecentProviderEvents,
   ingestPaymentEvent,
   parseApiError,
+  simulateNotification,
 } from "../services/api";
 import { formatINR, formatDateTime } from "../utils/format";
 import { toLabel } from "../utils/labels";
@@ -77,6 +78,8 @@ function EventConsole() {
   const [sessionRows, setSessionRows] = useState(loadSessionHistory);
   const [selectedId, setSelectedId] = useState(null);
 
+  const [notifyBusy, setNotifyBusy] = useState(null);
+  const [notifyMessage, setNotifyMessage] = useState(null);
   const [capabilities, setCapabilities] = useState(null);
   const [recent, setRecent] = useState(null);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -262,6 +265,27 @@ function EventConsole() {
       await sendFailedEvent({ replay: false });
     } else {
       await sendUnsupportedEvent();
+    }
+  };
+
+  const sendSimulatedNotification = async (channel) => {
+    const caseId = latest?.case_id;
+    if (!caseId) {
+      setNotifyMessage("Create a demo event first so there is a case to notify.");
+      return;
+    }
+    setNotifyBusy(channel);
+    setNotifyMessage(null);
+    setError(null);
+    try {
+      const result = await simulateNotification(caseId, channel);
+      setNotifyMessage(
+        `${result.channel} recorded as sent. Open the case Communications tab to see it.`
+      );
+    } catch (err) {
+      setError(parseApiError(err));
+    } finally {
+      setNotifyBusy(null);
     }
   };
 
@@ -649,6 +673,36 @@ function EventConsole() {
                     </Link>
                   )}
                 </div>
+
+                {latest.case_id && (
+                  <div className="rounded-xl border border-ink/8 bg-mist-soft/60 px-3 py-3">
+                    <p className="text-xs font-semibold text-ink">
+                      Simulate customer notification
+                    </p>
+                    <p className="mt-1 text-xs text-ink-mute">
+                      Records a demo email, SMS, or WhatsApp. Nothing is sent
+                      for real. Recovery status does not change.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {["EMAIL", "SMS", "WHATSAPP"].map((channel) => (
+                        <button
+                          key={channel}
+                          type="button"
+                          disabled={Boolean(notifyBusy)}
+                          onClick={() => sendSimulatedNotification(channel)}
+                          className="rounded-lg border border-ink/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-60"
+                        >
+                          {notifyBusy === channel
+                            ? "Sending…"
+                            : `Simulate ${channel.toLowerCase()}`}
+                        </button>
+                      ))}
+                    </div>
+                    {notifyMessage && (
+                      <p className="mt-2 text-xs text-pine">{notifyMessage}</p>
+                    )}
+                  </div>
+                )}
 
                 {latest.raw && (
                   <pre className="max-h-48 overflow-auto rounded-xl border border-ink/8 bg-mist-soft/70 p-3 font-mono text-[11px] leading-relaxed text-ink-soft">

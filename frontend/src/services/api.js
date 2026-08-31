@@ -19,7 +19,7 @@ const API_BASE_URL = resolveApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 20000,
+  timeout: 45000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -174,6 +174,14 @@ export const getDemoInventory = async () => {
 
 export const resetDemoData = async (confirmation) => {
   const response = await api.post("/api/demo/reset", { confirmation });
+  return response.data;
+};
+
+export const simulateNotification = async (caseId, channel) => {
+  const response = await api.post("/api/demo/notify", {
+    case_id: caseId,
+    channel,
+  });
   return response.data;
 };
 

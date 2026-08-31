@@ -18,14 +18,35 @@ export function formatPercent(value) {
   return `${Number(value)}%`;
 }
 
+export function parseApiDate(value) {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  let raw = String(value).trim();
+  if (!raw) return null;
+
+  // Python isoformat() often has 6-digit microseconds. Browsers can
+  // mis-parse that and show a wrong clock time.
+  raw = raw.replace(/(\.\d{3})\d+/, "$1");
+  raw = raw.replace(" ", "T");
+
+  const hasZone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(raw);
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(raw) && !hasZone) {
+    raw = `${raw}Z`;
+  }
+
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function formatDate(value) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "—";
+  const date = parseApiDate(value);
+  if (!date) return "—";
 
   return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -33,18 +54,17 @@ export function formatDate(value) {
 }
 
 export function formatDateTime(value) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "—";
+  const date = parseApiDate(value);
+  if (!date) return "—";
 
   return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
   }).format(date);
 }
 
@@ -58,11 +78,8 @@ export function extractPaymentLink(text) {
 }
 
 export function formatRelativeTime(value) {
-  if (!value) return "—";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "—";
+  const date = parseApiDate(value);
+  if (!date) return "—";
 
   const diffMs = Date.now() - date.getTime();
   const diffSec = Math.round(diffMs / 1000);

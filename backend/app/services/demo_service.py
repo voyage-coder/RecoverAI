@@ -7,6 +7,9 @@ Never deletes LIVE_PROVIDER payments, their cases, or merchant settings.
 
 from __future__ import annotations
 
+from datetime import datetime
+from uuid import uuid4
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -14,6 +17,8 @@ from app.schema import (
     AuditLog,
     CaseStatus,
     Communication,
+    CommunicationChannel,
+    CommunicationDirection,
     Customer,
     CustomerRecoveryLink,
     MerchantSettings,
@@ -306,4 +311,62 @@ def demo_health(db: Session) -> dict:
         "last_verified_webhook": last_webhook,
         "secrets_returned": False,
         "razorpay_key_id_hint": public.get("razorpay_key_id_hint"),
+    }
+
+
+_NOTIFY_COPY = {
+    "EMAIL": (
+        "Simulated email: your recent payment could not be completed. "
+        "Please finish payment using the recovery link from RecoverAI."
+    ),
+    "SMS": (
+        "Simulated SMS: payment failed. Open your RecoverAI payment link "
+        "to try again."
+    ),
+    "WHATSAPP": (
+        "Simulated WhatsApp: we could not collect your payment. "
+        "Use the RecoverAI link to pay securely."
+    ),
+}
+
+
+def simulate_notification(db: Session, case_id: str, channel: str) -> dict:
+    """
+    Record a simulated customer notification on an existing case.
+
+    Does not send a real email/SMS. Does not mark RECOVERED.
+    Does not increment contact_count (Safety Engine stays unchanged).
+    """
+    key = str(channel or "").strip().upper()
+    if key not in _NOTIFY_COPY:
+        raise ValueError("channel must be EMAIL, SMS, or WHATSAPP.")
+
+    case = db.get(RecoveryCase, case_id)
+    if case is None:
+        raise ValueError("Recovery case not found.")
+
+    communication = Communication(
+        id=str(uuid4()),
+        case_id=case.id,
+        channel=CommunicationChannel(key),
+        direction=CommunicationDirection.OUTBOUND,
+        content=_NOTIFY_COPY[key],
+        status="SENT",
+        sent_at=datetime.utcnow(),
+    )
+    db.add(communication)
+    db.flush()
+
+    return {
+        "simulated": True,
+        "channel": key,
+        "status": "SENT",
+        "case_id": case.id,
+        "case_number": case.case_number,
+        "communication_id": communication.id,
+        "content": communication.content,
+        "note": (
+            "Demo notification only. No real email or SMS was sent. "
+            "Case recovery status was not changed."
+        ),
     }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, Menu } from "lucide-react";
+import { Search, Menu } from "lucide-react";
+import NotificationBell from "./NotificationBell";
 
 function Topbar({ onMenuClick }) {
   const navigate = useNavigate();
@@ -43,14 +44,7 @@ function Topbar({ onMenuClick }) {
       </div>
 
       <div className="ml-4 flex items-center gap-3 sm:gap-4">
-        <button
-          type="button"
-          className="relative rounded-xl p-2 text-ink-mute transition hover:bg-mist hover:text-ink"
-          aria-label="Notifications"
-        >
-          <Bell size={17} />
-          <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-clay" />
-        </button>
+        <NotificationBell />
 
         <div className="hidden h-8 w-px bg-ink/10 sm:block" />
 
