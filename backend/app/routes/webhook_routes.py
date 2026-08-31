@@ -20,6 +20,21 @@ router = APIRouter(
 )
 
 
+@router.get("/razorpay")
+def razorpay_webhook_info():
+    return JSONResponse(
+        status_code=405,
+        content={
+            "detail": (
+                "This URL is for Razorpay POST webhooks only. "
+                "It is not the customer payment page."
+            ),
+            "webhook_path": "/api/webhooks/razorpay",
+            "customer_pay_path": "/recover/<token>",
+        },
+    )
+
+
 @router.post("/razorpay")
 async def razorpay_webhook(
     request: Request,
