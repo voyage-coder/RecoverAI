@@ -1,15 +1,25 @@
 import axios from "axios";
 
-// Prefer VITE_API_URL when set.
-// In local Vite dev, default to same-origin so /api is proxied (avoids CORS).
-// In production, point at the FastAPI server unless overridden.
-// const API_BASE_URL =
-//   import.meta.env.VITE_API_URL ||
-//   (import.meta.env.DEV ? "" : "http://127.0.0.1:8000");
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+function resolveApiBaseUrl() {
+  const raw = String(import.meta.env.VITE_API_URL || "")
+    .trim()
+    .replace(/\/$/, "");
+  const looksLikeUrl = /^https?:\/\/.+/i.test(raw);
+  if (looksLikeUrl) {
+    return raw;
+  }
+  // Local Vite: same-origin so /api is proxied.
+  if (import.meta.env.DEV) {
+    return "";
+  }
+  return "";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 20000,
   headers: {
     "Content-Type": "application/json",
   },
@@ -168,8 +178,11 @@ export const resetDemoData = async (confirmation) => {
 };
 
 export function parseApiError(error) {
+  if (error?.code === "ECONNABORTED") {
+    return "The API timed out. Check VITE_API_URL and that the Render backend is live.";
+  }
   if (!error?.response) {
-    return "Backend unavailable — start the RecoverAI API on port 8000.";
+    return "Backend unavailable. Set VITE_API_URL to your Render API origin (no /api suffix) and enable CORS.";
   }
 
   const detail = error.response.data?.detail;
