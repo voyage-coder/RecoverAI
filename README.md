@@ -287,7 +287,8 @@ flowchart LR
   S -->|allowed| A[Execute action]
   A --> G[Gemini writes copy]
   A --> R[Razorpay Test]
-  R -->|verified payment.captured| $ [Status Recovered]
+  R -->|verified payment.captured| REC[Status Recovered]
+  REC --> M[Money Recovered]
 ```
 
 ### Request map
