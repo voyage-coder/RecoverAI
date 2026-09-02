@@ -30,7 +30,7 @@ from app.services.payment_gateway_service import (
     is_razorpay_configured,
 )
 
-_URL_PATTERN = re.compile(r"https?://[^\s<>\"']+")
+_URL_PATTERN = re.compile(r"https?://[^\s<>\"']+|\/recover\/[A-Za-z0-9_-]+")
 
 
 def _get_case_or_raise(db: Session, case_id: str) -> RecoveryCase:
@@ -445,27 +445,16 @@ def get_checkout_config_for_case(
             "Checkout is closed for this case."
         )
     elif not checkout_available:
-        message = (
-            "No Razorpay TEST checkout available yet. "
-            "Execute a recovery action that creates an order or payment link."
-        )
+        message = "Run the recommended action first to create a payment link."
     elif awaiting or (order_id and razorpay_test):
-        message = (
-            "Razorpay TEST order ready. Pay once in Checkout. "
-            "If Checkout shows preferences 400, the order was already paid — "
-            "do not reopen it; wait for payment.captured on "
-            "POST /api/webhooks/razorpay (use ngrok on localhost), then Refresh."
-        )
+        message = "Pay once, then refresh after payment is confirmed."
     elif payment_link_url:
-        message = (
-            "TEST payment link available. Recovery applies only after "
-            "a verified payment.captured webhook reaches the backend."
-        )
+        message = "Use the payment link to complete payment."
 
     return {
         "available": checkout_available,
         "test_mode": mode == MODE_RAZORPAY_TEST or razorpay_test,
-        "demo_label": "RAZORPAY TEST MODE — not a live customer payment",
+        "demo_label": "Test payment",
         "mode": mode,
         "razorpay_key_id": public_key,
         "order_id": order_id,

@@ -231,11 +231,11 @@ export function deriveRecoveryStages({
     customerPayment.status = STAGE_STATUS.COMPLETED;
     customerPayment.timestamp =
       successAttempt?.created_at || result?.recovered_at;
-    customerPayment.detail = "Customer TEST payment completed";
+    customerPayment.detail = "Customer payment completed";
   } else if (awaitingWebhook) {
     customerPayment.status = STAGE_STATUS.IN_PROGRESS;
     customerPayment.detail =
-      "Waiting for the customer to complete TEST checkout";
+      "Waiting for the customer to complete payment";
   } else if (
     commActions.some((item) => upper(item.status) === "EXECUTED") ||
     communications.length > 0
@@ -263,15 +263,13 @@ export function deriveRecoveryStages({
     webhookStage.status = STAGE_STATUS.COMPLETED;
     webhookStage.timestamp =
       result?.recovered_at || recoveryCase?.updated_at;
-    webhookStage.detail =
-      "Signature-verified payment.captured applied";
+    webhookStage.detail = "Payment confirmed";
   } else if (awaitingWebhook) {
     webhookStage.status = STAGE_STATUS.IN_PROGRESS;
-    webhookStage.detail =
-      "Webhook not received yet — recovery is not confirmed";
+    webhookStage.detail = "Waiting for payment confirmation";
   } else if (customerPayment.status === STAGE_STATUS.IN_PROGRESS) {
     webhookStage.status = STAGE_STATUS.PENDING;
-    webhookStage.detail = "Waiting for verified payment.captured";
+    webhookStage.detail = "Waiting for payment confirmation";
   }
 
   // 8. Recovery Confirmed

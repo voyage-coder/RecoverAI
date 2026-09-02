@@ -100,7 +100,7 @@ function DemoHealth() {
 
       <div className="grid gap-3 lg:grid-cols-2">
         <Row
-          label="Backend connected"
+          label="Service connected"
           value={health?.backend_connected ? "Yes" : "No"}
           ok={health?.backend_connected}
         />
@@ -110,7 +110,7 @@ function DemoHealth() {
           ok={health?.database_connected}
         />
         <Row
-          label="Razorpay TEST credentials"
+          label="Razorpay credentials"
           value={
             health?.razorpay_credentials_configured
               ? `Configured · ${health.razorpay_key_id_hint || "key id stored"}`
@@ -139,10 +139,6 @@ function DemoHealth() {
           ok={health?.webhook_secret_configured}
         />
         <Row
-          label="Webhook endpoint"
-          value={health?.webhook_path || "/api/webhooks/razorpay"}
-        />
-        <Row
           label="Recovery mode"
           value={`${health?.recovery_mode || "MANUAL"}${
             health?.automatic_recovery_enabled ? " · automatic on" : " · automatic off"
@@ -166,7 +162,11 @@ function DemoHealth() {
         />
         <Row
           label="Environment"
-          value={health?.environment || "TEST"}
+          value={
+            String(health?.environment || "").toUpperCase() === "TEST"
+              ? "Sandbox"
+              : health?.environment || "Sandbox"
+          }
         />
       </div>
 
@@ -263,7 +263,7 @@ function DemoHealth() {
           to="/integrations"
           className="mt-4 inline-block text-sm font-semibold text-pine hover:underline"
         >
-          Back to onboarding
+          Back to Connect payments
         </Link>
       </section>
     </div>

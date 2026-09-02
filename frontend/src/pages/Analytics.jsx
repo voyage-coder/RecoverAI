@@ -245,7 +245,7 @@ function Analytics() {
               Recovery status breakdown
             </h3>
             <p className="mt-1 text-sm text-ink-mute">
-              ACTIVE · IN_PROGRESS · RECOVERED · ESCALATED · CLOSED
+              ACTIVE · IN_PROGRESS · RECOVERED · ESCALATED · STOPPED
             </p>
           </div>
           <div className="space-y-4">
@@ -331,9 +331,8 @@ function Analytics() {
             Failure analysis
           </h3>
           <p className="mt-1 text-sm text-ink-mute">
-            Case counts and exposure from APIs. Recovery rate by category uses
-            case status RECOVERED ÷ cases in that category — not recovered
-            amount attribution.
+            Case counts and share of all failures. Recovery rate is recovered
+            cases in that category, not the bar percent.
           </p>
         </div>
         {metrics.failureRows.length === 0 ? (

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from uuid import uuid4
+import re
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -316,18 +317,34 @@ def demo_health(db: Session) -> dict:
 
 _NOTIFY_COPY = {
     "EMAIL": (
-        "Simulated email: your recent payment could not be completed. "
-        "Please finish payment using the recovery link from RecoverAI."
+        "Your recent payment could not be completed. "
+        "Please finish payment using the link below."
     ),
     "SMS": (
-        "Simulated SMS: payment failed. Open your RecoverAI payment link "
-        "to try again."
+        "Payment failed. Please complete it using the link below."
     ),
     "WHATSAPP": (
-        "Simulated WhatsApp: we could not collect your payment. "
-        "Use the RecoverAI link to pay securely."
+        "We could not collect your payment. "
+        "Please complete it using the link below."
     ),
 }
+
+_URL_PATTERN = re.compile(r"https?://[^\s<>\"']+")
+
+
+def _existing_payment_link(db: Session, case_id: str) -> str | None:
+    communications = db.scalars(
+        select(Communication)
+        .where(Communication.case_id == case_id)
+        .order_by(Communication.sent_at.desc())
+    ).all()
+    for comm in communications:
+        if not comm.content:
+            continue
+        match = _URL_PATTERN.search(comm.content)
+        if match:
+            return match.group(0).rstrip(".,)")
+    return None
 
 
 def simulate_notification(db: Session, case_id: str, channel: str) -> dict:
@@ -345,12 +362,17 @@ def simulate_notification(db: Session, case_id: str, channel: str) -> dict:
     if case is None:
         raise ValueError("Recovery case not found.")
 
+    content = _NOTIFY_COPY[key]
+    payment_link = _existing_payment_link(db, case.id)
+    if payment_link:
+        content = f"{content}\n\nClick here to complete payment: {payment_link}"
+
     communication = Communication(
         id=str(uuid4()),
         case_id=case.id,
         channel=CommunicationChannel(key),
         direction=CommunicationDirection.OUTBOUND,
-        content=_NOTIFY_COPY[key],
+        content=content,
         status="SENT",
         sent_at=datetime.utcnow(),
     )

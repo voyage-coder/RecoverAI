@@ -72,6 +72,15 @@ select,
 button,
 textarea {
   font: inherit;
+  accent-color: #0e6b5c;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #12141a;
+  box-shadow: 0 0 0 1000px #f6f7f9 inset;
+  transition: background-color 9999s ease-out;
 }
 
 @layer components {

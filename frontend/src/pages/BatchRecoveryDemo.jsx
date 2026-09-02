@@ -216,7 +216,7 @@ function BatchRecoveryDemo() {
           </p>
         </div>
         <Link
-          to="/"
+          to="/dashboard"
           className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/30 hover:text-pine"
         >
           <ArrowLeft size={15} />
@@ -224,7 +224,7 @@ function BatchRecoveryDemo() {
         </Link>
       </div>
 
-      <DemoFlowGuide title="Batch demo — complete payment per case in TEST MODE" />
+      <DemoFlowGuide title="Batch recovery demo" />
 
       <section className="panel p-5 sm:p-6">
         <h3 className="font-display text-xl font-medium text-ink">

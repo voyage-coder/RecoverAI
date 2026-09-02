@@ -48,9 +48,8 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
         currency: checkoutConfig.currency || "INR",
         order_id: orderId,
         name: "RecoverAI",
-        description: `TEST recovery · ${caseNumber || "case"}`,
+        description: `Payment recovery · ${caseNumber || "case"}`,
         notes: {
-          demo: "RAZORPAY_TEST_MODE",
           case_number: caseNumber,
         },
         handler: function () {
@@ -59,7 +58,7 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
           }
           setOpening(false);
           onComplete?.(
-            "TEST payment submitted. Refresh after the verified webhook arrives."
+            "Payment submitted. Refresh after confirmation arrives."
           );
         },
         modal: {
@@ -76,67 +75,51 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
           "";
         setError(
           desc
-            ? `Razorpay TEST payment failed: ${desc}`
-            : "Razorpay TEST payment failed. Case status updates from backend only."
+            ? `Payment failed: ${desc}`
+            : "Payment failed. Refresh after confirmation."
         );
         setOpening(false);
       });
       rzp.open();
     } catch (err) {
       console.error(err);
-      setError(
-        err.message ||
-          "Checkout could not be opened. If preferences returned 400, this order may already be paid — wait for the webhook or create a fresh order."
-      );
+      setError(err.message || "Checkout could not be opened.");
       setOpening(false);
     }
   };
 
   if (!checkoutConfig) {
     return (
-      <p className="text-sm text-ink-mute">
-        Waiting for backend checkout configuration…
-      </p>
+      <p className="text-sm text-ink-mute">Loading payment options…</p>
     );
   }
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl border border-sand/30 bg-sand-soft/40 px-4 py-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-sand">
-          {checkoutConfig.demo_label || "RAZORPAY TEST MODE"}
-        </p>
-        <p className="mt-1 text-xs text-ink-mute">
-          Demo / test payment — not a live customer payment
-        </p>
-        {checkoutConfig.message && (
-          <p className="mt-2 text-sm text-ink-soft">
-            {checkoutConfig.message}
-          </p>
-        )}
-      </div>
+      {checkoutConfig.message && (
+        <p className="text-sm text-ink-mute">{checkoutConfig.message}</p>
+      )}
 
-      {orderId && (
-        <dl className="grid gap-2 font-mono text-xs text-ink-soft sm:grid-cols-2">
-          <div>
-            <dt className="text-ink-faint">order_id</dt>
-            <dd className="mt-0.5 break-all">{orderId}</dd>
-          </div>
-          <div>
-            <dt className="text-ink-faint">amount</dt>
-            <dd className="mt-0.5">
-              {checkoutConfig.amount} {checkoutConfig.currency}
-            </dd>
-          </div>
-        </dl>
+      {paymentLink && !paymentRecovered && (
+        <p className="text-sm text-ink">
+          Payment link:{" "}
+          <a
+            href={paymentLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-pine underline"
+          >
+            Click here
+          </a>
+        </p>
       )}
 
       {(paymentRecovered || orderAlreadyPaidInSession) && (
-        <div className="rounded-xl border border-pine/20 bg-pine-soft/40 px-4 py-3 text-sm text-ink-mute">
+        <p className="text-sm text-ink-mute">
           {paymentRecovered
-            ? "Payment recovered (verified webhook)."
-            : "This order is already paid. Refresh after the webhook arrives."}
-        </div>
+            ? "Payment recovered."
+            : "This order is already paid. Refresh to update."}
+        </p>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -150,31 +133,14 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
             {opening ? (
               <Loader2 size={15} className="animate-spin" />
             ) : null}
-            Complete TEST payment
+            Complete payment
           </button>
-        )}
-
-        {paymentLink && !paymentRecovered && (
-          <a
-            href={paymentLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-xl border border-pine/30 bg-pine-soft/50 px-4 py-2.5 text-sm font-semibold text-pine transition hover:bg-pine-soft"
-          >
-            Open payment link
-            <ExternalLink size={14} />
-          </a>
         )}
       </div>
 
       {error && (
         <p className="text-sm font-medium text-clay">{error}</p>
       )}
-
-      <p className="text-xs text-ink-faint">
-        TEST card: 4111 1111 1111 1111 · any future expiry · any CVV · OTP
-        123456.
-      </p>
     </div>
   );
 }

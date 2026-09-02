@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  ArrowUpRight,
-  RefreshCw,
-  Zap,
-  Layers,
-  Briefcase,
-  BarChart3,
-  Radio,
-  Plug,
-} from "lucide-react";
+import { ArrowUpRight, RefreshCw } from "lucide-react";
 import StatCard from "../components/StatCard";
 import StatusBadge from "../components/StatusBadge";
 import RecoveryProgress from "../components/RecoveryProgress";
@@ -34,6 +25,7 @@ import {
   selectCasesForDetailFetch,
   buildLiveEvents,
 } from "../utils/liveEvents";
+import { WORKSPACE_SHORTCUTS } from "../utils/workspaceShortcuts";
 
 const STATUS_ROWS = [
   { key: "active_cases", status: "ACTIVE", tone: "bg-pine" },
@@ -282,7 +274,7 @@ function Dashboard() {
     <div className="page-enter space-y-8">
       {/* Intro */}
       <section className="panel overflow-hidden">
-        <div className="flex flex-col gap-5 border-b border-ink/10 bg-mist-soft/50 px-5 py-6 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+        <div className="flex flex-col gap-4 border-b border-ink/10 bg-mist-soft/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
             <p className="eyebrow">Recovery Operations</p>
             <h2 className="page-title">Dashboard</h2>
@@ -314,155 +306,26 @@ function Dashboard() {
         </div>
       </section>
 
-      <section className="panel px-5 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-ink text-white">
-              <Plug size={16} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-ink">
-                Payment integration
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Connect Razorpay and check webhook setup
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/integrations"
-            className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/30 hover:text-pine"
-          >
-            Manage integration
-            <ArrowUpRight size={15} />
-          </Link>
-        </div>
-      </section>
-
-      <section className="panel px-5 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-pine-soft text-pine">
-              <Radio size={16} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-ink">
-                Live recovery event feed
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Watch recovery events as they happen
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/live-activity"
-            className="inline-flex items-center gap-2 rounded-xl border border-pine/25 bg-pine-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/40 hover:bg-pine-soft/70"
-          >
-            View live activity
-            <ArrowUpRight size={15} />
-          </Link>
-        </div>
-      </section>
-
-      <section className="panel px-5 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-pine-soft text-pine">
-              <Briefcase size={16} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-ink">
-                Merchant operations center
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Review escalated, in-recovery, recovered, and stopped cases
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/operations"
-            className="inline-flex items-center gap-2 rounded-xl border border-pine/25 bg-pine-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/40 hover:bg-pine-soft/70"
-          >
-            Open operations
-            <ArrowUpRight size={15} />
-          </Link>
-        </div>
-      </section>
-
-      <section className="panel px-5 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-skyline-soft text-skyline">
-              <BarChart3 size={16} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-ink">
-                Measured revenue recovery
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                KPIs, funnel, failure exposure, and recent verified recoveries
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/analytics"
-            className="inline-flex items-center gap-2 rounded-xl border border-skyline/25 bg-skyline-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-skyline/40 hover:bg-skyline-soft/60"
-          >
-            View recovery analytics
-            <ArrowUpRight size={15} />
-          </Link>
-        </div>
-      </section>
-
-      <section className="panel px-5 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-sand-soft text-sand">
-              <Zap size={16} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-ink">
-                Create demo event
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Create a demo failed payment to start recovery
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/event-console"
-            className="inline-flex items-center gap-2 rounded-xl border border-sand/30 bg-sand-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-sand/50 hover:bg-sand-soft/70"
-          >
-            Create demo event
-            <ArrowUpRight size={15} />
-          </Link>
-        </div>
-      </section>
-
-      <section className="panel px-5 py-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-skyline-soft text-skyline">
-              <Layers size={16} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-ink">
-                Demo: batch revenue recovery
-              </p>
-              <p className="mt-0.5 text-xs text-ink-mute">
-                Submit multiple simulated failures and measure recovery across
-                the batch
-              </p>
-            </div>
-          </div>
-          <Link
-            to="/batch-demo"
-            className="inline-flex items-center gap-2 rounded-xl border border-skyline/25 bg-skyline-soft/40 px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-skyline/40 hover:bg-skyline-soft/60"
-          >
-            Run batch recovery demo
-            <ArrowUpRight size={15} />
-          </Link>
-        </div>
+      <section className="flex flex-wrap gap-2">
+        {WORKSPACE_SHORTCUTS.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.to}
+              to={item.to}
+              className="inline-flex items-center gap-2 rounded-full border border-ink/8 bg-white px-3 py-1.5 text-sm font-semibold text-ink hover:border-ink/15"
+            >
+              <span className="flex items-center gap-2">
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${item.tone}`}
+                >
+                  <Icon size={12} />
+                </span>
+                {item.title}
+              </span>
+            </Link>
+          );
+        })}
       </section>
 
       {!hasCases ? (
@@ -554,7 +417,7 @@ function Dashboard() {
                   Case status distribution
                 </h3>
                 <p className="mt-1 text-sm text-ink-mute">
-                  ACTIVE · IN_PROGRESS · RECOVERED · ESCALATED · CLOSED
+                  ACTIVE · IN_PROGRESS · RECOVERED · ESCALATED · STOPPED
                 </p>
               </div>
               <CaseStatusDistribution overview={overview} />

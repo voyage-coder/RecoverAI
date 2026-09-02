@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowLeft, RefreshCw, Sparkles, FileDown, FileSpreadsheet } from "lucide-react";
 import StatusBadge from "../components/StatusBadge";
 import RecoveryTimeline from "../components/RecoveryTimeline";
 import CaseRecoveryProgress from "../components/CaseRecoveryProgress";
 import RecoveryOutcomeBanner from "../components/RecoveryOutcomeBanner";
-import OperationsSummary from "../components/OperationsSummary";
 import RecoveryOperationsPanel from "../components/RecoveryOperationsPanel";
 import CustomerRecoveryPanel from "../components/CustomerRecoveryPanel";
 import RecommendedActionCard from "../components/RecommendedActionCard";
 import AIRecoveryDecision from "../components/AIRecoveryDecision";
 import CustomerRecoveryJourney from "../components/CustomerRecoveryJourney";
-import LiveRecoveryState from "../components/LiveRecoveryState";
-import RecoveryActivityFeed from "../components/RecoveryActivityFeed";
+import { VerticalStepItem, VerticalStepList } from "../components/VerticalStepList";
 import OriginBadges from "../components/OriginBadges";
 import PaymentLinkDisplay from "../components/PaymentLinkDisplay";
 import LoadingState, {
@@ -31,13 +29,12 @@ import {
 } from "../services/api";
 import { formatINR, formatDateTime, extractPaymentLink } from "../utils/format";
 import { toLabel } from "../utils/labels";
-import {
-  deriveRecoveryStages,
-  shouldPollRecoveryCase,
-} from "../utils/recoveryStages";
-import { deriveLiveRecoveryState } from "../utils/liveRecoveryState";
-import { buildRecoveryActivityEvents } from "../utils/recoveryActivity";
+import { shouldPollRecoveryCase, deriveRecoveryStages } from "../utils/recoveryStages";
 import { deriveCustomerRecoveryJourney } from "../utils/customerJourney";
+import {
+  downloadAuditExcel,
+  downloadAuditPdf,
+} from "../utils/auditExport";
 
 const POLL_INTERVAL_MS = 8000;
 const NA = "Not available";
@@ -90,34 +87,6 @@ function DetailItem({ label, value, children, mono = false }) {
       </div>
     </div>
   );
-}
-
-function attemptTone(attempt) {
-  const status = String(attempt?.status || "").toUpperCase();
-  const code = String(attempt?.error_code || "").toUpperCase();
-  if (status === "SUCCESS") return "success";
-  if (
-    code.includes("AWAITING") ||
-    attempt?.gateway?.awaiting_webhook === true ||
-    status === "PENDING"
-  ) {
-    return "warning";
-  }
-  return "danger";
-}
-
-function attemptLabel(attempt) {
-  const status = String(attempt?.status || "").toUpperCase();
-  const code = String(attempt?.error_code || "").toUpperCase();
-  if (status === "SUCCESS") return "SUCCESS";
-  if (
-    code.includes("AWAITING") ||
-    attempt?.gateway?.awaiting_webhook === true
-  ) {
-    return "AWAITING";
-  }
-  if (status === "PENDING") return "PENDING";
-  return status || "FAILED";
 }
 
 function CaseDetails() {
@@ -242,33 +211,12 @@ function CaseDetails() {
     return () => window.clearTimeout(timeoutId);
   }, [postCheckoutPolling]);
 
-  const strategies = timeline?.strategies || [];
   const actions = timeline?.actions || [];
   const communications = timeline?.communications || [];
   const result = timeline?.result;
 
-  const selectedStrategies = useMemo(
-    () => strategies.filter((item) => item.is_selected),
-    [strategies]
-  );
-  const alternativeStrategies = useMemo(
-    () => strategies.filter((item) => !item.is_selected),
-    [strategies]
-  );
-
   const payment = paymentDetails?.payment;
   const gatewaySummary = paymentDetails?.gateway_summary;
-  const attempts = paymentDetails?.attempts || [];
-
-  const recoveryStages = useMemo(
-    () =>
-      deriveRecoveryStages({
-        recoveryCase,
-        timeline,
-        paymentDetails,
-      }),
-    [recoveryCase, timeline, paymentDetails]
-  );
 
   const paymentAmount =
     payment?.amount != null
@@ -276,22 +224,6 @@ function CaseDetails() {
       : recoveryCase?.amount_at_risk != null
         ? recoveryCase.amount_at_risk
         : result?.original_amount;
-
-  const liveStateRows = useMemo(
-    () =>
-      deriveLiveRecoveryState({
-        recoveryCase,
-        timeline,
-        paymentDetails,
-        checkoutConfig,
-      }),
-    [recoveryCase, timeline, paymentDetails, checkoutConfig]
-  );
-
-  const activityEvents = useMemo(
-    () => buildRecoveryActivityEvents(timeline, paymentDetails),
-    [timeline, paymentDetails]
-  );
 
   const customerJourney = useMemo(
     () =>
@@ -302,6 +234,16 @@ function CaseDetails() {
         checkoutConfig,
       }),
     [recoveryCase, timeline, paymentDetails, checkoutConfig]
+  );
+
+  const recoveryStages = useMemo(
+    () =>
+      deriveRecoveryStages({
+        recoveryCase,
+        timeline,
+        paymentDetails,
+      }),
+    [recoveryCase, timeline, paymentDetails]
   );
 
   const runOperatorAction = async (actionFn) => {
@@ -370,6 +312,24 @@ function CaseDetails() {
           )}
           <button
             type="button"
+            onClick={() =>
+              downloadAuditExcel({ recoveryCase, timeline })
+            }
+            className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2 text-sm font-semibold text-ink transition hover:border-pine/30 hover:text-pine"
+          >
+            <FileSpreadsheet size={15} />
+            Excel
+          </button>
+          <button
+            type="button"
+            onClick={() => downloadAuditPdf({ recoveryCase, timeline })}
+            className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2 text-sm font-semibold text-ink transition hover:border-pine/30 hover:text-pine"
+          >
+            <FileDown size={15} />
+            PDF
+          </button>
+          <button
+            type="button"
             onClick={() => loadCaseData({ soft: true })}
             disabled={refreshing}
             className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2 text-sm font-semibold text-ink transition hover:border-pine/30 hover:text-pine disabled:opacity-60"
@@ -411,7 +371,7 @@ function CaseDetails() {
 
       {fromSimulate && (
         <div className="space-y-4">
-          <div className="rounded-[18px] border border-sand/25 bg-sand-soft/50 px-5 py-4 sm:px-6">
+          <div className="rounded-[18px] border border-ink/10 bg-white px-5 py-4 sm:px-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-sand shadow-panel">
@@ -426,11 +386,11 @@ function CaseDetails() {
                     <span className="font-mono text-ink">
                       {recoveryCase.case_number}
                     </span>
-                    . Execute the pending recovery action below, then complete
-                    Razorpay TEST payment as the operator.
+                    . Execute the recommended action, then complete payment as
+                    the customer.
                   </p>
-                  <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-sand">
-                    DEMO / SIMULATED EVENT — not live Razorpay production
+                  <p className="mt-2 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                    Demo event
                   </p>
                 </div>
               </div>
@@ -443,7 +403,7 @@ function CaseDetails() {
               </button>
             </div>
           </div>
-          <DemoFlowGuide title="Judge demo: complete recovery in TEST MODE" />
+          <DemoFlowGuide title="Complete this recovery" />
         </div>
       )}
 
@@ -485,10 +445,10 @@ function CaseDetails() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-8 grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">
-                Amount at Risk
+                Amount at risk
               </p>
               <p className="mt-2 font-mono text-xl font-medium">
                 {displayMoney(recoveryCase.amount_at_risk)}
@@ -496,18 +456,10 @@ function CaseDetails() {
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">
-                Failure Category
+                Why it failed
               </p>
               <p className="mt-2 text-lg font-medium">
                 {displayLabel(recoveryCase.failure_category)}
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:col-span-2 lg:col-span-1">
-              <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">
-                Case Status
-              </p>
-              <p className="mt-2 text-lg font-medium">
-                {displayLabel(recoveryCase.status)}
               </p>
             </div>
           </div>
@@ -521,61 +473,14 @@ function CaseDetails() {
           result={result}
           payment={payment}
         />
-        <div className="mt-4 rounded-xl border border-ink/8 bg-mist-soft/60 px-4 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
-            What to do next
-          </p>
-          <p className="mt-2 text-sm font-semibold text-ink">
-            {recoveryCase.next_step_label || "Review this case"}
-          </p>
-          <p className="mt-1 text-sm text-ink-mute">
-            {recoveryCase.next_step_detail ||
-              recoveryCase.current_step ||
-              "Not available"}
-          </p>
-          <div className="mt-3 grid gap-2 text-xs text-ink-mute sm:grid-cols-2">
-            <p>
-              Why it failed:{" "}
-              <span className="text-ink">
-                {displayText(recoveryCase.failure_reason)}
-              </span>
+        {recoveryCase.next_step_label &&
+          String(recoveryCase.status || "").toUpperCase() !== "RECOVERED" &&
+          String(recoveryCase.status || "").toUpperCase() !== "CLOSED" && (
+            <p className="mt-4 text-sm text-ink">
+              <span className="font-semibold">Next: </span>
+              {recoveryCase.next_step_label}
             </p>
-            <p>
-              AI predicted:{" "}
-              <span className="text-ink">
-                {recoveryCase.recovery_probability != null
-                  ? `${recoveryCase.recovery_probability}% (prediction)`
-                  : "Not available"}
-              </span>
-            </p>
-            <p>
-              Strategy:{" "}
-              <span className="text-ink">
-                {displayLabel(recoveryCase.selected_strategy)}
-              </span>
-            </p>
-            <p>
-              Safety:{" "}
-              <span className="text-ink">
-                {recoveryCase.safety_decision || "Not available"}
-              </span>
-            </p>
-            <p>
-              Approval:{" "}
-              <span className="text-ink">
-                {recoveryCase.requires_approval
-                  ? "Required"
-                  : displayLabel(recoveryCase.approval_state)}
-              </span>
-            </p>
-            <p>
-              Waiting action:{" "}
-              <span className="text-ink">
-                {displayLabel(recoveryCase.recommended_action)}
-              </span>
-            </p>
-          </div>
-        </div>
+          )}
       </section>
 
       <section className="panel p-5 sm:p-6">
@@ -600,43 +505,24 @@ function CaseDetails() {
       </section>
 
       <section className="panel p-5 sm:p-6">
-        <SectionHeading
-          title="Customer Recovery Journey"
-          subtitle="Compact path from failure to verified recovery — derived from backend state only"
-        />
+        <SectionHeading title="Customer recovery journey" />
         <CustomerRecoveryJourney stages={customerJourney} />
       </section>
 
-      {/* Recovery progress stages */}
       <section className="panel p-5 sm:p-6">
-        <SectionHeading
-          title="Recovery Progress"
-          subtitle="Pipeline stages derived from live case, timeline, and payment APIs — not simulated"
-        />
+        <SectionHeading title="Recovery progress" />
         <CaseRecoveryProgress stages={recoveryStages} />
       </section>
 
-      {/* Operations summary */}
       <section className="panel p-5 sm:p-6">
-        <SectionHeading
-          title="Operations Summary"
-          subtitle="Live recovery desk metrics for this case"
-        />
-        <OperationsSummary recoveryCase={recoveryCase} result={result} />
-      </section>
-
-      <section className="panel p-5 sm:p-6">
-        <SectionHeading
-          title="Current State"
-          subtitle="Payment status, recovery status, and next step."
-        />
-        <LiveRecoveryState rows={liveStateRows} />
+        <SectionHeading title="Recovery timeline" />
+        <RecoveryTimeline timeline={timeline} />
       </section>
 
       <section className="panel p-5 sm:p-6">
         <SectionHeading
           title="Recovery Operations"
-          subtitle="Run the recommended action or prepare the next one."
+          subtitle="Run the recommended action or send the customer to pay."
         />
         <RecoveryOperationsPanel
           recoveryCase={recoveryCase}
@@ -669,44 +555,8 @@ function CaseDetails() {
 
       <section className="panel p-5 sm:p-6">
         <SectionHeading
-          title="Recovery Activity"
-          subtitle="What happened on this case, in order."
-        />
-        <RecoveryActivityFeed events={activityEvents} />
-      </section>
-
-      {/* AI diagnosis detail */}
-      <section className="panel p-5 sm:p-6">
-        <SectionHeading
-          title="AI Recovery Summary"
-          subtitle="Diagnosis and strategy signals from the backend"
-        />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <DetailItem
-            label="Root Cause"
-            value={displayText(recoveryCase.root_cause)}
-          />
-          <DetailItem
-            label="AI Confidence"
-            value={
-              recoveryCase.ai_confidence != null
-                ? `${recoveryCase.ai_confidence}%`
-                : NA
-            }
-            mono
-          />
-          <DetailItem
-            label="Failure Category"
-            value={displayLabel(recoveryCase.failure_category)}
-          />
-        </div>
-      </section>
-
-      {/* Payment & Gateway */}
-      <section className="panel p-5 sm:p-6">
-        <SectionHeading
-          title="Payment & Gateway"
-          subtitle="Sanitized payment record and gateway attempt history"
+          title="Payment"
+          subtitle="Amount, status, and why it failed."
         />
 
         {paymentDetailsError && !paymentDetails ? (
@@ -717,325 +567,89 @@ function CaseDetails() {
         ) : !paymentDetails ? (
           <EmptyState message="No payment details available." />
         ) : (
-          <div className="space-y-6">
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div>
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                  Payment
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <DetailItem
-                    label="Amount"
-                    value={displayMoney(payment?.amount)}
-                    mono
-                  />
-                  <DetailItem
-                    label="Currency"
-                    value={displayText(payment?.currency)}
-                    mono
-                  />
-                  <DetailItem label="Payment Status">
-                    {payment?.status ? (
-                      <StatusBadge value={payment.status} />
-                    ) : (
-                      NA
-                    )}
-                  </DetailItem>
-                  <DetailItem
-                    label="Payment ID"
-                    value={displayText(payment?.payment_id)}
-                    mono
-                  />
-                  <DetailItem
-                    label="Failure Reason"
-                    value={displayText(payment?.failure_reason)}
-                  />
-                  <DetailItem
-                    label="Failure Code"
-                    value={displayText(payment?.failure_code)}
-                    mono
-                  />
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                  Gateway
-                </p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <DetailItem
-                    label="Gateway Mode"
-                    value={displayText(gatewaySummary?.mode)}
-                    mono
-                  />
-                  <DetailItem
-                    label="Razorpay Order ID"
-                    value={displayText(gatewaySummary?.order_id)}
-                    mono
-                  />
-                  <DetailItem
-                    label="Razorpay Payment ID"
-                    value={displayText(gatewaySummary?.razorpay_payment_id)}
-                    mono
-                  />
-                  <DetailItem
-                    label="Gateway Status"
-                    value={displayText(gatewaySummary?.status)}
-                  />
-                  <DetailItem
-                    label="Attempt Number"
-                    value={
-                      gatewaySummary?.attempt_number != null
-                        ? String(gatewaySummary.attempt_number)
-                        : NA
-                    }
-                    mono
-                  />
-                  <DetailItem
-                    label="Webhook State"
-                    value={
-                      gatewaySummary?.awaiting_webhook == null
-                        ? NA
-                        : gatewaySummary.awaiting_webhook
-                          ? "Awaiting webhook"
-                          : "Not awaiting webhook"
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                Attempt History
-              </p>
-              {attempts.length === 0 ? (
-                <EmptyState message="No payment attempts recorded." />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <DetailItem
+              label="Amount"
+              value={displayMoney(payment?.amount ?? paymentAmount)}
+              mono
+            />
+            <DetailItem label="Payment status">
+              {payment?.status ? (
+                <StatusBadge value={payment.status} />
               ) : (
-                <div className="space-y-3">
-                  {attempts.map((attempt) => (
-                    <div
-                      key={attempt.id}
-                      className="rounded-2xl border border-ink/8 bg-mist-soft/70 p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-ink">
-                          Attempt #{attempt.attempt_number}
-                        </p>
-                        <StatusBadge
-                          value={attempt.status}
-                          label={attemptLabel(attempt)}
-                          tone={attemptTone(attempt)}
-                        />
-                      </div>
-                      <div className="mt-3 grid gap-2 text-xs text-ink-mute sm:grid-cols-2 lg:grid-cols-3">
-                        <p>
-                          Status:{" "}
-                          <span className="font-mono text-ink">
-                            {displayText(attempt.status)}
-                          </span>
-                        </p>
-                        <p>
-                          Error code:{" "}
-                          <span className="font-mono text-ink">
-                            {displayText(attempt.error_code)}
-                          </span>
-                        </p>
-                        <p>
-                          Source:{" "}
-                          <span className="font-mono text-ink">
-                            {displayText(attempt.error_source)}
-                          </span>
-                        </p>
-                        <p>
-                          Mode:{" "}
-                          <span className="font-mono text-ink">
-                            {displayText(attempt.gateway?.mode)}
-                          </span>
-                        </p>
-                        <p>
-                          Order ID:{" "}
-                          <span className="font-mono text-ink">
-                            {displayText(attempt.gateway?.order_id)}
-                          </span>
-                        </p>
-                        <p>
-                          Razorpay payment:{" "}
-                          <span className="font-mono text-ink">
-                            {displayText(
-                              attempt.gateway?.razorpay_payment_id ||
-                                attempt.gateway?.payment_id
-                            )}
-                          </span>
-                        </p>
-                        <p className="sm:col-span-2 lg:col-span-3">
-                          Created:{" "}
-                          <span className="font-mono text-ink">
-                            {displayWhen(attempt.created_at)}
-                          </span>
-                        </p>
-                      </div>
-                      <p className="mt-3 text-xs leading-relaxed text-ink-soft">
-                        {displayText(attempt.error_description)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+                NA
               )}
-            </div>
+            </DetailItem>
+            <DetailItem
+              label="Failure"
+              value={displayText(
+                payment?.failure_reason || recoveryCase.failure_reason
+              )}
+            />
+            <DetailItem
+              label="Waiting for payment"
+              value={
+                gatewaySummary?.awaiting_webhook
+                  ? "Yes — customer still paying"
+                  : "No"
+              }
+            />
           </div>
         )}
       </section>
 
-      {/* Timeline */}
       <section className="panel p-5 sm:p-6">
-        <SectionHeading
-          title="Recovery Timeline"
-          subtitle="Chronological events from timeline API"
-        />
-        <RecoveryTimeline timeline={timeline} />
-      </section>
-
-      {/* Strategies + Actions */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="panel p-5 sm:p-6">
-          <SectionHeading
-            title="Strategies"
-            subtitle="Selected strategy and ranked alternatives"
-          />
-
-          {strategies.length === 0 ? (
-            <EmptyState message="No strategies recorded." />
-          ) : (
-            <div className="space-y-5">
-              <div>
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-pine">
-                  Selected
-                </p>
-                {selectedStrategies.length === 0 ? (
-                  <p className="text-sm text-ink-mute">
-                    No strategy marked as selected.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {selectedStrategies.map((strategy) => (
-                      <div
-                        key={strategy.id}
-                        className="rounded-2xl border border-pine/20 bg-pine-soft/40 p-4"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-ink">
-                            {displayLabel(strategy.strategy_type)}
-                          </p>
-                          <StatusBadge value="EXECUTED" label="Selected" />
-                        </div>
-                        <p className="mt-2 text-xs leading-relaxed text-ink-mute">
-                          {displayText(strategy.rationale)}
-                        </p>
-                        <p className="mt-2 font-mono text-[11px] text-ink-faint">
-                          Expected probability:{" "}
-                          {strategy.expected_probability != null
-                            ? `${strategy.expected_probability}%`
-                            : NA}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-faint">
-                  Alternatives
-                </p>
-                {alternativeStrategies.length === 0 ? (
-                  <p className="text-sm text-ink-mute">
-                    No alternative strategies recorded.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {alternativeStrategies.map((strategy) => (
-                      <div
-                        key={strategy.id}
-                        className="rounded-2xl border border-ink/8 bg-mist-soft/70 p-4"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-ink">
-                            {displayLabel(strategy.strategy_type)}
-                          </p>
-                          <StatusBadge
-                            value="PENDING"
-                            label="Alternative"
-                            tone="neutral"
-                          />
-                        </div>
-                        <p className="mt-2 text-xs leading-relaxed text-ink-mute">
-                          {displayText(strategy.rationale)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
-
-        <section className="panel p-5 sm:p-6">
-          <SectionHeading
-            title="Actions"
-            subtitle="Recovery actions and execution outcomes"
-          />
-          {actions.length === 0 ? (
-            <EmptyState message="No actions recorded." />
-          ) : (
-            <div className="space-y-3">
-              {actions.map((action) => (
-                <div
+        <SectionHeading title="Actions" />
+        {actions.length === 0 ? (
+          <EmptyState message="No actions recorded." />
+        ) : (
+          <VerticalStepList>
+            {actions.map((action, index) => {
+              const status = String(action.status || "").toUpperCase();
+              const succeeded = status === "EXECUTED";
+              const failed = status === "FAILED" || status === "BLOCKED";
+              const badge = succeeded
+                ? "Succeeded"
+                : failed
+                  ? "Failed"
+                  : status === "PENDING"
+                    ? "Waiting"
+                    : displayLabel(action.status);
+              const tone = succeeded
+                ? "success"
+                : failed
+                  ? "danger"
+                  : "warning";
+              const resultLine = action.result_text
+                ? String(action.result_text).replace(/\s+/g, " ").trim()
+                : null;
+              return (
+                <VerticalStepItem
                   key={action.id}
-                  className="rounded-2xl border border-ink/8 bg-mist-soft/70 p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-ink">
-                      {displayLabel(action.action_type)}
-                    </p>
-                    <StatusBadge value={action.status} />
-                  </div>
-                  <div className="mt-3 grid gap-2 text-xs text-ink-mute sm:grid-cols-2">
-                    <p>
-                      Attempt:{" "}
-                      <span className="font-mono text-ink">
-                        {action.attempt_number ?? NA}
-                      </span>
-                    </p>
-                    <p>
-                      Scheduled:{" "}
-                      <span className="font-mono text-ink">
-                        {displayWhen(action.scheduled_at)}
-                      </span>
-                    </p>
-                    <p>
-                      Executed:{" "}
-                      <span className="font-mono text-ink">
-                        {displayWhen(action.executed_at)}
-                      </span>
-                    </p>
-                    <p>
-                      Created:{" "}
-                      <span className="font-mono text-ink">
-                        {displayWhen(action.created_at)}
-                      </span>
-                    </p>
-                  </div>
-                  <p className="mt-3 text-xs leading-relaxed text-ink-soft">
-                    Result: {displayText(action.result_text)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+                  index={index + 1}
+                  isLast={index === actions.length - 1}
+                  status={
+                    succeeded ? "SUCCESS" : failed ? "FAILED" : "PENDING"
+                  }
+                  title={displayLabel(action.action_type)}
+                  detail={
+                    resultLine && resultLine.length > 72
+                      ? `${resultLine.slice(0, 72).trim()}…`
+                      : resultLine
+                  }
+                  badge={badge}
+                  badgeTone={tone}
+                  right={
+                    <span className="font-mono text-[11px] text-ink-faint">
+                      {displayWhen(action.executed_at || action.created_at)}
+                    </span>
+                  }
+                />
+              );
+            })}
+          </VerticalStepList>
+        )}
+      </section>
 
       {/* Communications */}
       <section className="panel p-5 sm:p-6">
@@ -1071,11 +685,28 @@ function CaseDetails() {
                   <StatusBadge value={comm.status} />
                 </div>
                 <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-ink">
-                  {displayText(comm.content)}
+                  {displayText(
+                    commLink
+                      ? String(comm.content || "")
+                          .replace(commLink, "")
+                          .replace(/Click here to complete payment:\s*/gi, "")
+                          .replace(/Payment link:\s*/gi, "")
+                          .trim() || "Payment reminder sent."
+                      : comm.content
+                  )}
                 </p>
-                {commLink &&
-                commLink !== checkoutConfig?.payment_link_url ? (
-                  <PaymentLinkDisplay url={commLink} compact />
+                {commLink ? (
+                  <p className="mt-2 text-sm text-ink">
+                    <a
+                      href={commLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-pine underline"
+                    >
+                      Click here
+                    </a>
+                    {" "}to complete payment.
+                  </p>
                 ) : null}
                 <p className="mt-3 font-mono text-[11px] text-ink-faint">
                   Sent {displayWhen(comm.sent_at)}
@@ -1085,40 +716,6 @@ function CaseDetails() {
             })}
           </div>
         )}
-      </section>
-
-      {/* Payment summary footer */}
-      <section className="panel p-5 sm:p-6">
-        <SectionHeading
-          title="Payment / Recovery Summary"
-          subtitle="Payment status, amount, and recovery result."
-        />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <DetailItem
-            label="Payment ID"
-            value={displayText(payment?.payment_id || recoveryCase.payment_id)}
-            mono
-          />
-          <DetailItem
-            label="Amount"
-            value={displayMoney(paymentAmount)}
-            mono
-          />
-          <DetailItem label="Payment Status">
-            {payment?.status ? (
-              <StatusBadge value={payment.status} />
-            ) : (
-              NA
-            )}
-          </DetailItem>
-          <DetailItem label="Recovery Result">
-            {result?.status ? (
-              <StatusBadge value={result.status} />
-            ) : (
-              NA
-            )}
-          </DetailItem>
-        </div>
       </section>
     </div>
   );

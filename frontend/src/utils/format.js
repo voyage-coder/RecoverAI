@@ -69,12 +69,21 @@ export function formatDateTime(value) {
 }
 
 const PAYMENT_URL_PATTERN = /https?:\/\/[^\s<>"']+/i;
+const RECOVER_PATH_PATTERN = /\/recover\/[A-Za-z0-9_-]+/;
 
 export function extractPaymentLink(text) {
   if (!text) return null;
-  const match = String(text).match(PAYMENT_URL_PATTERN);
-  if (!match) return null;
-  return match[0].replace(/[.,)]+$/, "");
+  const abs = String(text).match(PAYMENT_URL_PATTERN);
+  if (abs) {
+    return abs[0].replace(/[.,)]+$/, "");
+  }
+  const relative = String(text).match(RECOVER_PATH_PATTERN);
+  if (!relative) return null;
+  const origin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : "";
+  return origin ? `${origin}${relative[0]}` : relative[0];
 }
 
 export function formatRelativeTime(value) {

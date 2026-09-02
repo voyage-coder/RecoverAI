@@ -16,7 +16,7 @@ function LoadingState({ message = "Loading..." }) {
 
 export function ErrorState({
   message = "Unable to connect to RecoverAI API.",
-  detail = "Make sure the FastAPI backend is running on port 8000.",
+  detail = "Check that RecoverAI is running and try again.",
 }) {
   return (
     <div className="rounded-panel border border-clay/20 bg-clay-soft/60 p-6">

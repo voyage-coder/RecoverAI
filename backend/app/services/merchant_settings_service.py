@@ -454,10 +454,10 @@ def merchant_next_step(
             "code": "AWAITING_CUSTOMER",
             "label": "Waiting for customer payment",
             "detail": (
-                "A TEST checkout or payment link is waiting on the customer. "
+                "A checkout or payment link is waiting on the customer. "
                 "RecoverAI will confirm recovery only after a verified "
-                "payment.captured webhook. If checkout finished and this "
-                "has not updated, the webhook was not received."
+                "payment capture. If checkout finished and this has not "
+                "updated, the webhook was not received."
             ),
         }
     if policy.get("approval_state") == "AWAITING_APPROVAL":

@@ -132,7 +132,7 @@ function PaymentEventSimulator() {
             Create demo event
           </Link>
           <Link
-            to="/"
+            to="/dashboard"
             className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2.5 text-sm font-semibold text-ink transition hover:border-pine/30 hover:text-pine"
           >
             <ArrowLeft size={15} />
@@ -141,7 +141,7 @@ function PaymentEventSimulator() {
         </div>
       </div>
 
-      <DemoFlowGuide title="End-to-end judge demo (TEST MODE)" />
+      <DemoFlowGuide title="Create a demo event" />
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <section className="panel p-5 sm:p-6">

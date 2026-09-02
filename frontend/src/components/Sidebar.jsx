@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import {
   LayoutDashboard,
   CreditCard,
@@ -14,16 +14,16 @@ import {
 } from "lucide-react";
 
 const navigation = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard, end: true },
-  { name: "Operations", href: "/operations", icon: Briefcase },
-  { name: "Live Activity", href: "/live-activity", icon: Radio },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, end: true },
+  { name: "Recovery Cases", href: "/cases", icon: CreditCard, end: true },
   { name: "Create demo event", href: "/event-console", icon: Terminal },
-  { name: "Demo health", href: "/demo-health", icon: HeartPulse },
-  { name: "Integrations", href: "/integrations", icon: Plug },
-  { name: "Recovery Cases", href: "/cases", icon: CreditCard },
+  { name: "Live Activity", href: "/live-activity", icon: Radio },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "Operations", href: "/operations", icon: Briefcase },
+  { name: "Connect payments", href: "/integrations", icon: Plug },
+  { name: "Demo health", href: "/demo-health", icon: HeartPulse },
   { name: "Activity", href: "/activity", icon: Activity },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Settings", href: "/settings", icon: Settings, end: true },
 ];
 
 function Sidebar({ open, onClose }) {
@@ -44,7 +44,7 @@ function Sidebar({ open, onClose }) {
         }`}
       >
         <div className="flex h-[4.5rem] items-center justify-between px-5">
-          <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3">
             <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-ink text-white">
               <span className="font-display text-lg italic leading-none">R</span>
               <span className="absolute -bottom-3 -right-3 h-8 w-8 rounded-full bg-pine/40 blur-md" />
@@ -57,7 +57,7 @@ function Sidebar({ open, onClose }) {
                 Payment recovery desk
               </p>
             </div>
-          </div>
+          </Link>
 
           <button
             type="button"
@@ -84,7 +84,7 @@ function Sidebar({ open, onClose }) {
                 end={item.end}
                 onClick={onClose}
                 className={({ isActive }) =>
-                  `group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                  `group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium outline-none ring-0 transition ${
                     isActive
                       ? "bg-ink text-white shadow-panel"
                       : "text-ink-soft hover:bg-mist hover:text-ink"

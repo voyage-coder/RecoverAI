@@ -166,39 +166,9 @@ function RecommendedActionCard({
         {toLabel(strategy)}
       </h4>
       <p className="mt-2 text-sm text-ink-mute">
-        Recommended action: {toLabel(strategy)}. Nothing runs until you confirm.
+        Confirm to run this action. Recovery is confirmed only after the
+        customer pays.
       </p>
-
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-ink/8 bg-white/70 px-3 py-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-            Amount at risk
-          </p>
-          <p className="mt-1 font-mono text-sm text-ink">
-            {formatINR(recoveryCase?.amount_at_risk)}
-          </p>
-        </div>
-        <div className="rounded-xl border border-ink/8 bg-white/70 px-3 py-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-            Strategy
-          </p>
-          <p className="mt-1 text-sm text-ink">{toLabel(strategy)}</p>
-        </div>
-        <div className="rounded-xl border border-ink/8 bg-white/70 px-3 py-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-            Risk
-          </p>
-          <p className="mt-1">
-            <StatusBadge value={recoveryCase?.risk_level} />
-          </p>
-        </div>
-      </div>
-
-      {actionState && (
-        <div className="mt-3">
-          <StatusBadge value={actionState} label={actionState} />
-        </div>
-      )}
 
       {!confirming ? (
         <button

@@ -19,14 +19,13 @@ function PaymentLinkDisplay({ url, compact = false }) {
           Customer can use this link to complete payment.
         </p>
       )}
-      <p className="mt-2 break-all font-mono text-xs text-ink">{url}</p>
       <a
         href={url}
         target="_blank"
         rel="noopener noreferrer"
         className="mt-3 inline-flex items-center gap-2 rounded-xl border border-pine/30 bg-white px-3.5 py-2 text-sm font-semibold text-pine transition hover:bg-pine-soft/50"
       >
-        Open payment link
+        Click here
         <ExternalLink size={14} />
       </a>
     </div>

@@ -34,7 +34,7 @@ function FailureChart({ data = [] }) {
               <span className="font-mono text-xs text-ink-faint">
                 {count}
                 <span className="mx-1 text-ink/20">·</span>
-                {share}%
+                {share}% of failures
               </span>
             </div>
             <div className="h-2.5 overflow-hidden rounded-full bg-mist-deep/70">

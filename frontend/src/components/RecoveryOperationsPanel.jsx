@@ -243,14 +243,8 @@ function RecoveryOperationsPanel({
 
       {!isTerminal && (
         <div className="rounded-xl border border-ink/10 bg-white p-4">
-          <p className="text-sm font-semibold text-ink">
-            Razorpay TEST recovery
-          </p>
-          <p className="mt-1 text-xs text-ink-mute">
-            Complete TEST payment as the customer. Checkout success does not
-            mark recovered.
-          </p>
-          <div className="mt-4">
+          <p className="text-sm font-semibold text-ink">Customer payment</p>
+          <div className="mt-3">
             <RazorpayTestCheckout
               checkoutConfig={checkoutConfig}
               caseNumber={recoveryCase?.case_number}
@@ -265,8 +259,8 @@ function RecoveryOperationsPanel({
 
       {isTerminal && (
         <p className="text-sm text-ink-mute">
-          Case is in a terminal backend state ({toLabel(caseStatus)}). No
-          further operator actions are available.
+          Case is closed ({toLabel(caseStatus)}). No further actions are
+          available.
         </p>
       )}
 
@@ -275,8 +269,8 @@ function RecoveryOperationsPanel({
           Safety note
         </p>
         <p className="mt-1">
-          After TEST payment, wait for the verified webhook. Do not prepare the
-          next action while waiting for the customer.
+          After payment, wait for confirmation. Do not prepare the next action
+          while the customer is paying.
         </p>
       </div>
     </div>

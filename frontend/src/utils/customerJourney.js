@@ -128,7 +128,7 @@ export function deriveCustomerRecoveryJourney({
     verifiedDetail = "Webhook signature verified";
   } else if (awaiting) {
     verifiedStatus = STAGE_STATUS.IN_PROGRESS;
-    verifiedDetail = "Waiting for payment.captured webhook";
+    verifiedDetail = "Waiting for payment confirmation";
   }
   stages.push({
     key: "payment_verified",

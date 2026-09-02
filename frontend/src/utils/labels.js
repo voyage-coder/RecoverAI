@@ -4,7 +4,7 @@ const LABEL_MAP = {
   IN_PROGRESS: "In Progress",
   RECOVERED: "Recovered",
   ESCALATED: "Escalated",
-  CLOSED: "Closed",
+  CLOSED: "Stopped",
   BLOCKED: "Blocked by safety rules",
 
   // Failure categories

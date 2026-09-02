@@ -14,14 +14,16 @@ import Operations from "./pages/Operations";
 import LiveActivity from "./pages/LiveActivity";
 import Integrations from "./pages/Integrations";
 import CustomerRecover from "./pages/CustomerRecover";
+import Landing from "./pages/Landing";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<Landing />} />
         <Route path="recover/:token" element={<CustomerRecover />} />
         <Route element={<Layout />}>
-          <Route index element={<Dashboard />} />
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="operations" element={<Operations />} />
           <Route path="live-activity" element={<LiveActivity />} />
           <Route path="integrations" element={<Integrations />} />
@@ -34,7 +36,7 @@ function App() {
           <Route path="settings" element={<Settings />} />
           <Route path="simulate" element={<PaymentEventSimulator />} />
           <Route path="batch-demo" element={<BatchRecoveryDemo />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

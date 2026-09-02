@@ -280,7 +280,7 @@ export function buildLiveEventsForCase({
           amount: attempt.gateway?.amount ?? amountAtRisk,
           failureCategory,
           caseStatus,
-          description: `Razorpay TEST order created · ${orderId}`,
+          description: `Razorpay order created · ${orderId}`,
         })
       );
 
@@ -514,7 +514,7 @@ export function buildAttentionItems({
         : "Needs human attention — no Force Recover available";
     } else if (awaiting) {
       recommended =
-        "Awaiting customer payment — complete TEST checkout / wait for webhook";
+        "Awaiting customer payment — wait for confirmed capture";
     } else if (pending) {
       recommended = `Execute recommended action: ${toLabel(
         pending.action_type

@@ -350,9 +350,7 @@ function EventConsole() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-sand/30 bg-sand-soft/40 px-4 py-3 text-sm text-ink-soft">
-        <span className="font-semibold text-ink">Environment: DEMO / TEST</span>
-        <span className="mx-2 text-ink/25">·</span>
+      <div className="rounded-xl border border-ink/8 bg-white px-4 py-3 text-sm text-ink-mute">
         Same event replayed with the same key will not create a duplicate case.
       </div>
 
@@ -399,8 +397,8 @@ function EventConsole() {
                     ? selectedCapability.note
                     : (
                       <>
-                        <span className="font-semibold text-sand">
-                          Not supported by current backend state model.
+                        <span className="font-semibold text-ink">
+                          Simulation only — does not change recovery.
                         </span>{" "}
                         {selectedCapability.note}
                       </>
@@ -640,12 +638,6 @@ function EventConsole() {
                   {latest.message}
                 </p>
 
-                {latest.required && (
-                  <p className="rounded-xl border border-sand/25 bg-sand-soft/30 px-3 py-2 text-xs text-ink-soft">
-                    Required: {latest.required}
-                  </p>
-                )}
-
                 <div className="flex flex-wrap gap-2">
                   {latest.case_id && (
                     <Link
@@ -703,12 +695,6 @@ function EventConsole() {
                     )}
                   </div>
                 )}
-
-                {latest.raw && (
-                  <pre className="max-h-48 overflow-auto rounded-xl border border-ink/8 bg-mist-soft/70 p-3 font-mono text-[11px] leading-relaxed text-ink-soft">
-                    {JSON.stringify(latest.raw, null, 2)}
-                  </pre>
-                )}
               </div>
             )}
           </div>
@@ -731,7 +717,7 @@ function EventConsole() {
             </h3>
             <p className="mt-1 text-xs text-ink-mute">
               {recent?.note ||
-                "Backend-derived from Payment rows with failure codes."}
+                "Recent failed payments created from this demo tool."}
             </p>
           </div>
           <button

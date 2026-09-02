@@ -108,18 +108,12 @@ function Settings() {
         <p className="eyebrow">Configuration</p>
         <h2 className="page-title">Settings</h2>
         <p className="mt-2 max-w-2xl text-sm text-ink-mute">
-          Set how RecoverAI runs recovery actions. Razorpay credentials stay
-          on Integrations.
+          Set how RecoverAI runs recovery actions. Payment keys are on{" "}
+          <Link to="/integrations" className="font-semibold text-pine">
+            Connect payments
+          </Link>
+          .
         </p>
-      </div>
-
-      <div className="rounded-xl border border-sand/25 bg-sand-soft/40 px-4 py-3 text-sm text-ink-soft">
-        Razorpay TEST credentials are stored on the backend only — configure
-        them on{" "}
-        <Link to="/integrations" className="font-semibold text-pine">
-          Integrations
-        </Link>
-        . This page never shows API or webhook secrets.
       </div>
 
       {loading ? (

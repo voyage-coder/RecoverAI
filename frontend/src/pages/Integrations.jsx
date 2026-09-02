@@ -35,15 +35,14 @@ const WORKFLOW_STEPS = [
 ];
 
 const CONNECT_STEPS = [
-  "Configure Razorpay TEST credentials (stored on the backend only).",
-  "Test the connection, then expose RecoverAI for webhook delivery.",
-  "Configure Razorpay webhook: <public-backend-url>/api/webhooks/razorpay",
-  "Subscribe to payment.failed and payment.captured.",
-  "Live payment.failed creates a recovery case. Demo tools remain optional.",
-  "Merchant recovery mode decides automatic / approval / manual execution.",
-  "Customer completes TEST payment.",
-  "Razorpay sends payment.captured.",
-  "RecoverAI verifies webhook and marks the case RECOVERED.",
+  "Save Razorpay credentials (stored securely, never shown again).",
+  "Test the connection.",
+  "Copy the webhook URL from this page into the Razorpay dashboard.",
+  "Subscribe to payment failed and payment captured.",
+  "A live failed payment opens a recovery case. Demo tools are optional.",
+  "Choose recovery mode in Settings (automatic, approval, or manual).",
+  "The customer completes payment.",
+  "Razorpay confirms capture and RecoverAI marks the case recovered.",
 ];
 
 function Integrations() {
@@ -124,7 +123,7 @@ function Integrations() {
   const workflow = useMemo(() => WORKFLOW_STEPS, []);
 
   if (loading) {
-    return <LoadingState message="Loading payment integration..." />;
+    return <LoadingState message="Loading payment connection..." />;
   }
 
   if (error) {
@@ -136,22 +135,12 @@ function Integrations() {
       <section className="panel overflow-hidden">
         <div className="border-b border-ink/10 bg-mist-soft/50 px-5 py-6 sm:px-6">
           <p className="eyebrow">Merchant platform</p>
-          <h2 className="page-title">Integrations</h2>
+          <h2 className="page-title">Connect payments</h2>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-ink-mute">
-            Connect Razorpay and configure recovery.
+            Connect Razorpay so RecoverAI can recover failed payments.
           </p>
         </div>
       </section>
-
-      <div className="rounded-[18px] border border-sand/30 bg-sand-soft/45 px-5 py-4 sm:px-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sand">
-          TEST MODE — not Razorpay LIVE production
-        </p>
-        <p className="mt-2 text-sm text-ink-mute">
-          Razorpay TEST mode. Recovery is confirmed only after a verified
-          webhook.
-        </p>
-      </div>
 
       {(() => {
         const settings = status?.merchant_settings || {};
@@ -160,7 +149,7 @@ function Integrations() {
             id: "credentials",
             label: "Credentials",
             done: status?.credentials_configured === true,
-            hint: status?.razorpay_key_id_hint || "Save TEST keys below",
+            hint: status?.razorpay_key_id_hint || "Save keys below",
           },
           {
             id: "connection",
@@ -172,7 +161,9 @@ function Integrations() {
             id: "webhook",
             label: "Webhook",
             done: status?.webhook_secret_configured === true,
-            hint: status?.webhook_path || "/api/webhooks/razorpay",
+            hint: status?.webhook_secret_configured
+              ? "Secret saved"
+              : "Save webhook secret",
           },
           {
             id: "policy",
@@ -250,11 +241,10 @@ function Integrations() {
           Merchant onboarding
         </p>
         <h3 className="mt-2 font-display text-xl font-medium text-ink">
-          Razorpay TEST credentials
+          Razorpay credentials
         </h3>
         <p className="mt-2 text-sm text-ink-mute">
-          Secrets are stored on the backend only and are never returned to this
-          page. Live keys are rejected. Public key id hint:{" "}
+          Secrets stay on RecoverAI and are never shown again. Public key:{" "}
           {status?.razorpay_key_id_hint || "not configured"}
         </p>
         <form
@@ -275,7 +265,7 @@ function Integrations() {
               }
               await saveRazorpayCredentials(payload);
               setCredForm({ key_id: "", key_secret: "", webhook_secret: "" });
-              setCredMessage("Credentials stored on the backend.");
+              setCredMessage("Credentials saved.");
               loadPage();
             } catch (err) {
               setCredError(parseApiError(err));
@@ -388,10 +378,10 @@ function Integrations() {
           </Link>
         </div>
         <ol className="mt-5 space-y-1 text-sm text-ink-mute">
-          <li>1. TEST EVENT → RecoverAI receives failure</li>
-          <li>2. Case created → AI diagnosis → Recovery strategy</li>
-          <li>3. Merchant executes action → Customer pays in TEST Checkout</li>
-          <li>4. Verified payment.captured → RECOVERED</li>
+          <li>1. Failed payment → RecoverAI opens a case</li>
+          <li>2. AI diagnosis → recovery strategy</li>
+          <li>3. Merchant runs the action → customer pays</li>
+          <li>4. Verified capture → recovered</li>
         </ol>
       </section>
 
@@ -420,7 +410,7 @@ function Integrations() {
         </div>
         <LiveEventFeed
           events={recentEvents}
-          emptyMessage="No recent recovery events yet. Send a TEST payment failure to start."
+          emptyMessage="No recent recovery events yet."
         />
       </section>
 

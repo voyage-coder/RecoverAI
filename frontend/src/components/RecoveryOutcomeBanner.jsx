@@ -67,8 +67,8 @@ function RecoveryOutcomeBanner({ recoveryCase, result, payment }) {
     badgeValue = "ESCALATED";
   } else if (caseStatus === "CLOSED") {
     tone = "border-ink/10 bg-mist-soft/60";
-    headline = "Case Closed";
-    subline = recoveryCase.current_step || "Recovery desk closed this case";
+    headline = "Stopped";
+    subline = recoveryCase.current_step || "Recovery was stopped for this case";
     badgeValue = "CLOSED";
   }
 
@@ -77,7 +77,7 @@ function RecoveryOutcomeBanner({ recoveryCase, result, payment }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-faint">
-            Recovery Outcome
+            Status
           </p>
           <h4 className="mt-2 font-display text-2xl font-medium text-ink">
             {headline}

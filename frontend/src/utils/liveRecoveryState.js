@@ -1,7 +1,7 @@
 import { formatINR } from "./format";
 import { toLabel } from "./labels";
 
-const WAITING = "Waiting for backend confirmation";
+const WAITING = "Waiting for payment confirmation";
 
 function upper(value) {
   return String(value || "").toUpperCase();

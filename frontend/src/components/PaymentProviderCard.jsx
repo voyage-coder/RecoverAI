@@ -51,7 +51,11 @@ function PaymentProviderCard({ status }) {
       <div className="mt-5 space-y-2">
         <StatusRow
           label="Environment"
-          value={status?.environment || "TEST"}
+          value={
+            String(status?.environment || "").toUpperCase() === "TEST"
+              ? "Sandbox"
+              : status?.environment || "Sandbox"
+          }
           tone="warning"
         />
         <StatusRow
@@ -94,8 +98,7 @@ function PaymentProviderCard({ status }) {
       </div>
 
       <p className="mt-4 text-xs leading-relaxed text-ink-faint">
-        Credentials configured securely — secrets stay on the backend. Public
-        checkout keys are only used through the existing TEST checkout flow.
+        Credentials are stored securely. Secrets are never shown in this app.
       </p>
     </div>
   );

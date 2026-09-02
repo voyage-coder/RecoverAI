@@ -353,7 +353,7 @@ def get_provider_event_capabilities() -> dict:
         )
 
     return {
-        "environment": "DEMO / TEST",
+        "environment": "DEMO",
         "label": "Provider Event Console",
         "capabilities": capabilities,
     }
@@ -486,9 +486,7 @@ def list_recent_provider_events(
         "events": events,
         "source": "payments+recovery_cases",
         "note": (
-            "History is derived from Payment rows that include a failure_code "
-            "(typically from POST /api/events/payment). There is no separate "
-            "provider-event database. Idempotency is demonstrated by replaying "
-            "the same idempotency_key through the ingest endpoint."
+            "History lists failed payments that started recovery. "
+            "Replay the same demo event with the same key to show it is not duplicated."
         ),
     }

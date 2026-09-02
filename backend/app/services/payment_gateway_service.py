@@ -384,7 +384,12 @@ def create_payment_link(
         if expire_by:
             payload["expire_by"] = int(expire_by)
 
-        link = client.payment_link.create(payload)
+        try:
+            link = client.payment_link.create(payload)
+        except Exception:
+            payload.pop("customer", None)
+            payload.pop("expire_by", None)
+            link = client.payment_link.create(payload)
 
         return GatewayPaymentLinkResult(
             success=True,

@@ -256,19 +256,13 @@ function CustomerRecover() {
               rel="noopener noreferrer"
               className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-[#1c1a16]"
             >
-              Open payment link
+              Click here
               <ExternalLink size={14} />
             </a>
           )}
 
           {checkoutNote && (
             <p className="mt-4 text-sm text-[#5c584f]">{checkoutNote}</p>
-          )}
-
-          {data.test_mode && (
-            <p className="mt-6 text-[11px] leading-relaxed text-[#8a8478]">
-              Demo environment — Razorpay TEST MODE.
-            </p>
           )}
         </div>
       </div>

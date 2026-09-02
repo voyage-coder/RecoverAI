@@ -1,5 +1,7 @@
 from datetime import datetime
 from uuid import uuid4
+import os
+import re
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -40,6 +42,52 @@ def _payment_link_expire_by(db: Session) -> int:
 
     hours = payment_link_expiry_hours(db)
     return int(time.time()) + (hours * 3600)
+
+
+_PAY_URL_PATTERN = re.compile(
+    r"https?://[^\s<>\"']+|\/recover\/[A-Za-z0-9_-]+"
+)
+
+
+def _existing_pay_url(db: Session, case_id: str) -> str | None:
+    communications = db.scalars(
+        select(Communication)
+        .where(Communication.case_id == case_id)
+        .order_by(Communication.sent_at.desc())
+    ).all()
+    for comm in communications:
+        if not comm.content:
+            continue
+        match = _PAY_URL_PATTERN.search(comm.content)
+        if match:
+            return match.group(0).rstrip(".,)")
+    return None
+
+
+def _customer_pay_url(db: Session, case: RecoveryCase) -> str | None:
+    from app.services.customer_recovery_service import (
+        create_customer_recovery_link,
+    )
+
+    try:
+        created = create_customer_recovery_link(db, case.id)
+    except ValueError:
+        return None
+
+    path = created.get("recovery_path")
+    if not path:
+        return None
+
+    base = (
+        os.getenv("PUBLIC_FRONTEND_URL") or os.getenv("FRONTEND_URL") or ""
+    ).strip().rstrip("/")
+    if base:
+        return f"{base}{path}"
+    return path
+
+
+def _append_pay_link(content: str, url: str) -> str:
+    return f"{content}\n\nClick here to complete payment: {url}"
 
 
 # ============================================================
@@ -264,16 +312,28 @@ def execute_communication(
         )
 
         if link_result.success and link_result.payment_link_url:
-            content = (
-                f"{content}\n\n"
-                f"Payment link: {link_result.payment_link_url}"
+            pay_url = link_result.payment_link_url
+        else:
+            pay_url = _existing_pay_url(db, case.id) or _customer_pay_url(
+                db, case
             )
-        elif link_result.error_description:
+
+        if pay_url:
+            content = _append_pay_link(content, pay_url)
+        else:
             content = (
                 f"{content}\n\n"
                 "A payment link could not be generated right now. "
                 "Please reply to this message for assistance."
             )
+
+    if strategy == StrategyType.OFFER_ALT_PAYMENT_METHOD:
+        if not _PAY_URL_PATTERN.search(content or ""):
+            alt_url = _existing_pay_url(db, case.id) or _customer_pay_url(
+                db, case
+            )
+            if alt_url:
+                content = _append_pay_link(content, alt_url)
 
     # --------------------------------------------------------
     # Create communication
