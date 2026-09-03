@@ -94,7 +94,11 @@ function Settings() {
       });
       setSettings(data);
       const run = data.automatic_run;
-      if (run?.ran) {
+      if (run?.queued) {
+        setMessage(
+          "Policy saved. The agent is processing allowed open cases in the background. Refresh cases in a few seconds."
+        );
+      } else if (run?.ran) {
         setMessage(
           `Policy saved. Agent processed ${run.considered} open case(s): ` +
             `${run.executed} action(s) run, ${run.skipped} skipped ` +

@@ -8,7 +8,7 @@ Never marks a case RECOVERED.
 
 from __future__ import annotations
 
-import logging
+import threading
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -174,3 +174,28 @@ def process_automatic_recovery_queue(db: Session) -> dict:
         "skipped": skipped,
         "failed": failed,
     }
+
+
+_queue_lock = threading.Lock()
+
+
+def run_automatic_recovery_queue_job() -> None:
+    """Own session. Used after Save policy so the HTTP request does not wait."""
+    from app.database import SessionLocal
+
+    if not _queue_lock.acquire(blocking=False):
+        logger.info("Automatic recovery queue already running.")
+        return
+
+    db = SessionLocal()
+    try:
+        process_automatic_recovery_queue(db)
+    except Exception:
+        logger.exception("Automatic recovery queue job failed.")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        db.close()
+        _queue_lock.release()
