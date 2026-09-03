@@ -12,7 +12,6 @@ import AIRecoveryDecision from "../components/AIRecoveryDecision";
 import CustomerRecoveryJourney from "../components/CustomerRecoveryJourney";
 import { VerticalStepItem, VerticalStepList } from "../components/VerticalStepList";
 import OriginBadges from "../components/OriginBadges";
-import PaymentLinkDisplay from "../components/PaymentLinkDisplay";
 import LoadingState, {
   ErrorState,
   EmptyState,
@@ -25,6 +24,7 @@ import {
   getCheckoutConfig,
   executePendingRecoveryAction,
   continueRecovery,
+  createCustomerRecoveryLink,
   parseApiError,
 } from "../services/api";
 import { formatINR, formatDateTime, extractPaymentLink } from "../utils/format";
@@ -53,6 +53,11 @@ function displayLabel(value) {
 function displayMoney(paise) {
   if (paise == null || Number.isNaN(Number(paise))) return NA;
   return formatINR(paise);
+}
+
+function isRazorpayHostedLink(url) {
+  const value = String(url || "").toLowerCase();
+  return value.includes("rzp.io") || value.includes("razorpay.com");
 }
 
 function displayWhen(value) {
@@ -110,6 +115,7 @@ function CaseDetails() {
   const [operationMessage, setOperationMessage] = useState(null);
   const [operationError, setOperationError] = useState(null);
   const [postCheckoutPolling, setPostCheckoutPolling] = useState(false);
+  const [openingPayLink, setOpeningPayLink] = useState(false);
 
   const loadCaseData = useCallback(
     async ({ soft = false } = {}) => {
@@ -278,6 +284,34 @@ function CaseDetails() {
     const next = new URLSearchParams(searchParams);
     next.delete("from");
     setSearchParams(next, { replace: true });
+  };
+
+  const openLiveCustomerPay = async (fallbackUrl) => {
+    if (!caseId) return;
+    setOpeningPayLink(true);
+    try {
+      const data = await createCustomerRecoveryLink(caseId);
+      const path = data?.recovery_path;
+      if (path) {
+        window.open(`${window.location.origin}${path}`, "_blank", "noopener,noreferrer");
+        return;
+      }
+      if (fallbackUrl && !isRazorpayHostedLink(fallbackUrl)) {
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      }
+    } catch (err) {
+      console.error(err);
+      if (fallbackUrl && !isRazorpayHostedLink(fallbackUrl)) {
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      } else {
+        setOperationError(
+          parseApiError(err) ||
+            "Could not open a live payment link. Generate Pay as customer on this case."
+        );
+      }
+    } finally {
+      setOpeningPayLink(false);
+    }
   };
 
   if (loading) return <LoadingState message="Loading case details..." />;
@@ -657,11 +691,6 @@ function CaseDetails() {
           title="Communications"
           subtitle="Messages sent for this case, including any payment link."
         />
-        {checkoutConfig?.payment_link_url ? (
-          <div className="mb-4">
-            <PaymentLinkDisplay url={checkoutConfig.payment_link_url} />
-          </div>
-        ) : null}
         {communications.length === 0 ? (
           <EmptyState message="No communications recorded." />
         ) : (
@@ -697,14 +726,14 @@ function CaseDetails() {
                 </p>
                 {commLink ? (
                   <p className="mt-2 text-sm text-ink">
-                    <a
-                      href={commLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-semibold text-pine underline"
+                    <button
+                      type="button"
+                      disabled={openingPayLink}
+                      onClick={() => openLiveCustomerPay(commLink)}
+                      className="font-semibold text-pine underline disabled:opacity-60"
                     >
-                      Click here
-                    </a>
+                      {openingPayLink ? "Opening…" : "Click here"}
+                    </button>
                     {" "}to complete payment.
                   </p>
                 ) : null}

@@ -234,8 +234,8 @@ def main():
         db.commit()
         old = client.get(f"/api/customer/recovery/{old_token}")
         report.check(
-            "J. Old token invalid after regenerate",
-            old.status_code in {404, 410},
+            "J. Old token still valid after another link is created",
+            old.status_code == 200,
             f"status={old.status_code}",
         )
         new = client.get(

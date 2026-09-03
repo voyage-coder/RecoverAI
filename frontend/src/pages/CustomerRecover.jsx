@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   getCustomerRecoveryByToken,
   parseApiError,
@@ -180,7 +180,6 @@ function CustomerRecover() {
   }
 
   const recovered = data?.customer_status === "recovered";
-  const paymentLink = data?.checkout?.payment_link_url || null;
   const canPay =
     data?.payment_action_available &&
     data?.checkout?.available &&
@@ -250,22 +249,8 @@ function CustomerRecover() {
             <p className="mt-6 text-sm text-[#5c584f]">
               {data.customer_status === "payment_pending"
                 ? "Waiting for payment confirmation…"
-                : paymentLink
-                  ? "Use the payment link below to pay securely."
-                  : "A payment action is not available on this link right now."}
+                : "A payment action is not available on this link right now."}
             </p>
-          )}
-
-          {!recovered && paymentLink && (
-            <a
-              href={paymentLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm font-semibold text-[#1c1a16]"
-            >
-              Click here
-              <ExternalLink size={14} />
-            </a>
           )}
 
           {checkoutNote && (

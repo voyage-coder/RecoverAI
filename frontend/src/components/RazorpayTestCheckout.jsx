@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 function loadRazorpayScript() {
   return new Promise((resolve, reject) => {
@@ -34,8 +34,6 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
     checkoutConfig?.razorpay_key_id &&
     !paymentRecovered &&
     !orderAlreadyPaidInSession;
-
-  const paymentLink = checkoutConfig?.payment_link_url;
 
   const openCheckout = async () => {
     setError(null);
@@ -98,20 +96,6 @@ function RazorpayTestCheckout({ checkoutConfig, caseNumber, onComplete }) {
     <div className="space-y-3">
       {checkoutConfig.message && (
         <p className="text-sm text-ink-mute">{checkoutConfig.message}</p>
-      )}
-
-      {paymentLink && !paymentRecovered && (
-        <p className="text-sm text-ink">
-          Payment link:{" "}
-          <a
-            href={paymentLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-pine underline"
-          >
-            Click here
-          </a>
-        </p>
       )}
 
       {(paymentRecovered || orderAlreadyPaidInSession) && (

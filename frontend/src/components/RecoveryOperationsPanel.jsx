@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import RazorpayTestCheckout from "./RazorpayTestCheckout";
-import PaymentLinkDisplay from "./PaymentLinkDisplay";
 import { toLabel } from "../utils/labels";
 
 function upper(value) {
@@ -147,10 +146,6 @@ function RecoveryOperationsPanel({
           </p>
         </div>
       )}
-
-      {checkoutConfig?.payment_link_url && !isTerminal ? (
-        <PaymentLinkDisplay url={checkoutConfig.payment_link_url} />
-      ) : null}
 
       {blockedAction && (
         <div className="rounded-xl border border-clay/25 bg-clay-soft/50 px-4 py-3">

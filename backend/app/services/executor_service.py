@@ -68,6 +68,8 @@ def _customer_pay_url(db: Session, case: RecoveryCase) -> str | None:
     existing = _existing_pay_url(db, case.id)
     if existing and "/recover/" in existing:
         return existing
+    if existing and "rzp.io" in existing:
+        existing = None
 
     from app.services.customer_recovery_service import (
         create_customer_recovery_link,
@@ -319,12 +321,7 @@ def execute_communication(
             expire_by=_payment_link_expire_by(db),
         )
 
-        if link_result.success and link_result.payment_link_url:
-            pay_url = link_result.payment_link_url
-        else:
-            pay_url = _existing_pay_url(db, case.id) or _customer_pay_url(
-                db, case
-            )
+        pay_url = _customer_pay_url(db, case)
 
         if pay_url:
             content = _append_pay_link(content, pay_url)
@@ -337,9 +334,7 @@ def execute_communication(
 
     if strategy == StrategyType.OFFER_ALT_PAYMENT_METHOD:
         if not _PAY_URL_PATTERN.search(content or ""):
-            alt_url = _existing_pay_url(db, case.id) or _customer_pay_url(
-                db, case
-            )
+            alt_url = _customer_pay_url(db, case)
             if alt_url:
                 content = _append_pay_link(content, alt_url)
 

@@ -204,7 +204,7 @@ def create_customer_recovery_link(
     case_id: str,
     *,
     ttl_hours: int | None = None,
-    revoke_previous: bool = True,
+    revoke_previous: bool = False,
 ) -> dict:
     case = _get_case(db, case_id)
 
@@ -296,9 +296,7 @@ def resolve_customer_recovery(
     if link is None:
         raise ValueError("invalid_token")
 
-    if link.revoked_at is not None:
-        raise ValueError("revoked_token")
-
+    # Revoked links still pay until TTL — regenerating used to 410 Click here.
     if link.expires_at <= _now():
         raise ValueError("expired_token")
 
