@@ -7,25 +7,10 @@ import {
   parseApiError,
 } from "../services/api";
 import { formatINR } from "../utils/format";
-
-const MODES = [
-  {
-    id: "MANUAL",
-    label: "Manual",
-    detail: "Merchant executes every approved recovery action.",
-  },
-  {
-    id: "APPROVAL_REQUIRED",
-    label: "Approval required",
-    detail: "Actions wait in Operations until a merchant reviews them.",
-  },
-  {
-    id: "AUTOMATIC",
-    label: "Automatic",
-    detail:
-      "Executes Safety Engine–approved actions within your amount limits.",
-  },
-];
+import {
+  RECOVERY_MODES,
+  normalizeRecoveryMode,
+} from "../utils/recoveryMode";
 
 function Settings() {
   const [settings, setSettings] = useState(null);
@@ -35,7 +20,6 @@ function Settings() {
   const [message, setMessage] = useState(null);
   const [form, setForm] = useState({
     recovery_mode: "MANUAL",
-    automatic_recovery_enabled: false,
     max_automatic_recovery_amount: "5000",
     max_retry_attempts: "3",
     payment_link_expiry_hours: "72",
@@ -49,10 +33,7 @@ function Settings() {
       const data = await getMerchantSettings();
       setSettings(data);
       setForm({
-        recovery_mode: data.recovery_mode || "MANUAL",
-        automatic_recovery_enabled: Boolean(
-          data.automatic_recovery_enabled
-        ),
+        recovery_mode: normalizeRecoveryMode(data.recovery_mode),
         max_automatic_recovery_amount: String(
           Math.round((data.max_automatic_recovery_amount || 0) / 100)
         ),
@@ -81,10 +62,11 @@ function Settings() {
     setSaving(true);
     setError(null);
     setMessage(null);
+    const mode = normalizeRecoveryMode(form.recovery_mode);
     try {
       const data = await updateMerchantSettings({
-        recovery_mode: form.recovery_mode,
-        automatic_recovery_enabled: form.automatic_recovery_enabled,
+        recovery_mode: mode,
+        automatic_recovery_enabled: mode === "AUTOMATIC",
         max_automatic_recovery_amount:
           Math.round(Number(form.max_automatic_recovery_amount) * 100),
         max_retry_attempts: Number(form.max_retry_attempts),
@@ -96,14 +78,7 @@ function Settings() {
       const run = data.automatic_run;
       if (run?.queued) {
         setMessage(
-          "Policy saved. The agent is processing allowed open cases in the background. Refresh cases in a few seconds."
-        );
-      } else if (run?.ran) {
-        setMessage(
-          `Policy saved. Agent processed ${run.considered} open case(s): ` +
-            `${run.executed} action(s) run, ${run.skipped} skipped ` +
-            `(cap, safety, waiting, or already acted).` +
-            (run.failed ? ` ${run.failed} failed.` : "")
+          "Saved. The agent is running on every allowed open case in the background. Refresh Recovery Cases in a few seconds."
         );
       } else {
         setMessage("Recovery policy saved.");
@@ -122,10 +97,15 @@ function Settings() {
         <p className="eyebrow">Configuration</p>
         <h2 className="page-title">Settings</h2>
         <p className="mt-2 max-w-2xl text-sm text-ink-mute">
-          Set how RecoverAI runs recovery actions. Switching to{" "}
-          <span className="font-semibold text-ink">Automatic</span> runs the
-          agent on every open case that is still allowed (under your rupee
-          cap, Safety Engine, not escalated). Payment keys are on{" "}
+          Two modes for the demo.{" "}
+          <span className="font-semibold text-ink">Manual</span> — you click
+          Execute.{" "}
+          <span className="font-semibold text-ink">
+            Run agent on every case
+          </span>{" "}
+          — after save, the agent processes every open case Safety and your
+          rupee cap still allow. Neither mode marks Recovered; only a Razorpay
+          webhook does. Keys are on{" "}
           <Link to="/integrations" className="font-semibold text-pine">
             Connect payments
           </Link>
@@ -141,8 +121,8 @@ function Settings() {
             <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
               Recovery mode
             </p>
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              {MODES.map((mode) => (
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {RECOVERY_MODES.map((mode) => (
                 <label
                   key={mode.id}
                   className={`cursor-pointer rounded-xl border px-4 py-3 ${
@@ -160,7 +140,6 @@ function Settings() {
                       setForm((prev) => ({
                         ...prev,
                         recovery_mode: mode.id,
-                        automatic_recovery_enabled: mode.id === "AUTOMATIC",
                       }))
                     }
                   />
@@ -170,30 +149,18 @@ function Settings() {
               ))}
             </div>
             <p className="mt-3 text-xs text-ink-mute">
-              Automatic runs show as <span className="font-semibold">Agent</span>{" "}
-              on the case. Actions you run from Operations or the case page show
-              as <span className="font-semibold">Manual</span>.
+              Agent-run actions show as{" "}
+              <span className="font-semibold">Agent</span> on the case.
+              Execute that you click shows as{" "}
+              <span className="font-semibold">Manual</span>. Over the rupee cap
+              or high-value still waits for you.
             </p>
           </div>
-
-          <label className="flex items-center gap-3 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={form.automatic_recovery_enabled}
-              onChange={(e) =>
-                setForm((prev) => ({
-                  ...prev,
-                  automatic_recovery_enabled: e.target.checked,
-                }))
-              }
-            />
-            Enable automatic recovery (only when mode is Automatic)
-          </label>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                Max automatic amount (₹)
+                Agent amount cap (₹)
               </label>
               <input
                 type="number"
@@ -210,7 +177,7 @@ function Settings() {
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                High-value approval threshold (₹)
+                High-value needs you (₹)
               </label>
               <input
                 type="number"
@@ -263,9 +230,9 @@ function Settings() {
 
           {settings && (
             <p className="text-xs text-ink-faint">
-              Current automatic cap:{" "}
-              {formatINR(settings.max_automatic_recovery_amount)} · High-value
-              from {formatINR(settings.high_value_approval_threshold)}
+              Agent cap: {formatINR(settings.max_automatic_recovery_amount)} ·
+              High-value from{" "}
+              {formatINR(settings.high_value_approval_threshold)}
             </p>
           )}
 

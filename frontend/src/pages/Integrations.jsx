@@ -18,6 +18,8 @@ import {
   testRazorpayConnection,
   parseApiError,
 } from "../services/api";
+import { formatDateTime, formatINR } from "../utils/format";
+import { recoveryModeLabel } from "../utils/recoveryMode";
 import {
   selectCasesForDetailFetch,
   buildLiveEvents,
@@ -169,11 +171,11 @@ function Integrations() {
             id: "policy",
             label: "Policy",
             done: Boolean(settings.recovery_mode),
-            hint: `${settings.recovery_mode || "MANUAL"} · auto cap ${
+            hint: `${recoveryModeLabel(settings.recovery_mode)} · cap ${
               settings.max_automatic_recovery_amount != null
-                ? settings.max_automatic_recovery_amount
+                ? formatINR(settings.max_automatic_recovery_amount)
                 : "—"
-            } paise`,
+            }`,
           },
         ];
         const ready = checklist.every((item) => item.done);

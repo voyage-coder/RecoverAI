@@ -45,7 +45,9 @@ const LABEL_MAP = {
   HIGH: "High",
   CRITICAL: "Critical",
 
-  // Channels / actors
+  MANUAL: "Manual",
+  AUTOMATIC: "Run agent on every case",
+  APPROVAL_REQUIRED: "Manual",
   EMAIL: "Email",
   SMS: "SMS",
   WHATSAPP: "WhatsApp",

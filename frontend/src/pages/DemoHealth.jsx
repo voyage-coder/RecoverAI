@@ -9,6 +9,7 @@ import {
   parseApiError,
 } from "../services/api";
 import { formatDateTime, formatINR } from "../utils/format";
+import { recoveryModeLabel } from "../utils/recoveryMode";
 
 function Row({ label, value, ok }) {
   return (
@@ -140,12 +141,10 @@ function DemoHealth() {
         />
         <Row
           label="Recovery mode"
-          value={`${health?.recovery_mode || "MANUAL"}${
-            health?.automatic_recovery_enabled ? " · automatic on" : " · automatic off"
-          }`}
+          value={recoveryModeLabel(health?.recovery_mode)}
         />
         <Row
-          label="Auto amount cap"
+          label="Agent amount cap"
           value={
             health?.max_automatic_recovery_amount != null
               ? formatINR(health.max_automatic_recovery_amount)

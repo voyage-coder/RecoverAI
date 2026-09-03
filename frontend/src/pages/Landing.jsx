@@ -41,7 +41,7 @@ const CAPABILITIES = [
     to: "/settings",
     title: "Choose how recovery runs",
     blurb:
-      "Manual, approval required, or automatic — with rupee caps so high-value cases never auto-run.",
+      "Manual, or run the agent on every allowed case — with a rupee cap so high-value stays with you.",
     icon: SlidersHorizontal,
     tone: "bg-sand-soft text-sand",
   },
@@ -118,8 +118,8 @@ function Landing() {
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-ink-mute">
               RecoverAI finds failed Razorpay payments, ranks the next recovery
-              move with ML, lets you choose Manual / Approval / Automatic in
-              Settings, and counts rupees only after a verified capture.
+              move with ML, lets you choose Manual or Run agent on every case
+              in Settings, and counts rupees only after a verified capture.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -251,32 +251,27 @@ function Landing() {
         >
           <div className="flex flex-col justify-center">
             <p className="eyebrow">Settings</p>
-            <h2 className="page-title">Pick the recovery method</h2>
+            <h2 className="page-title">Pick Manual or run the agent</h2>
             <p className="mt-3 text-sm leading-relaxed text-ink-mute">
-              You control how aggressive RecoverAI is. Safety Engine still
-              blocks unsafe actions. Automatic never marks recovered — only
-              Razorpay can.
+              Two modes. Safety Engine still blocks unsafe actions. The agent
+              never marks recovered — only Razorpay can.
             </p>
             <ul className="mt-6 space-y-3 text-sm">
               <li className="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-panel">
                 <span className="font-semibold text-ink">Manual</span>
                 <span className="mt-0.5 block text-ink-mute">
-                  You run every approved action from the case or Operations.
-                </span>
-              </li>
-              <li className="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-panel">
-                <span className="font-semibold text-ink">Approval required</span>
-                <span className="mt-0.5 block text-ink-mute">
-                  Actions wait until a merchant reviews them.
+                  You Execute each action from the case or Operations. Timeline
+                  tags it Manual.
                 </span>
               </li>
               <li className="rounded-xl border border-pine/20 bg-pine-soft/40 px-4 py-3">
                 <span className="font-semibold text-pine">
-                  Automatic + rupee caps
+                  Run agent on every case
                 </span>
                 <span className="mt-0.5 block text-ink-mute">
-                  Runs only under your cap (default ₹5,000). High-value
-                  (default ₹10,000) still needs a person. Retry cap 3.
+                  After save, the agent processes every open case still allowed
+                  (under cap, not escalated, Safety allows). Tagged Agent.
+                  Default cap ₹5,000. High-value (₹10,000) still needs you.
                 </span>
               </li>
             </ul>
@@ -302,7 +297,7 @@ function Landing() {
               Recovery mode
             </p>
             <div className="mt-4 grid gap-2">
-              {["Manual", "Approval required", "Automatic"].map(
+              {["Manual", "Run agent on every case"].map(
                 (mode, index) => (
                   <div
                     key={mode}
@@ -323,7 +318,7 @@ function Landing() {
             <div className="mt-4 grid grid-cols-2 gap-2 text-center">
               <div className="rounded-xl bg-mist-soft px-3 py-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-                  Auto cap
+                  Agent cap
                 </p>
                 <p className="mt-1 font-display text-lg">₹5,000</p>
               </div>
@@ -449,7 +444,7 @@ function Landing() {
               {
                 step: "03",
                 title: "Gate",
-                body: "Safety Engine + your Settings mode and caps.",
+                body: "Safety Engine + Manual or Run agent on every case.",
                 icon: Lock,
                 tone: "bg-ink text-white",
               },
@@ -550,7 +545,7 @@ function Landing() {
                     />
                   </span>
                   <span className="mt-1 block text-sm leading-relaxed text-ink-mute">
-                    Choose Manual, Approval, or Automatic and set rupee caps.
+                    Choose Manual or Run agent on every case. Set the rupee cap.
                   </span>
                 </span>
               </Link>

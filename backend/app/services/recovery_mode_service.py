@@ -8,6 +8,7 @@ Never marks a case RECOVERED.
 
 from __future__ import annotations
 
+import logging
 import threading
 
 from sqlalchemy import select

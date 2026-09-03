@@ -177,7 +177,7 @@ export function deriveRecoveryStages({
   // 5. Approval / Execution
   const approvalStage = makeStage(
     "approval_execution",
-    "Approval / Execution"
+    "Execution"
   );
   if (latestAction) {
     const actionStatus = upper(latestAction.status);

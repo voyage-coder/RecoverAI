@@ -57,7 +57,7 @@ Merchants see amount at risk, in-recovery vs recovered vs escalated, a batch rec
 - FastAPI recovery pipeline: ingest → case → diagnosis → strategy → safety → action → communication
 - Razorpay **Test** integration: orders, payment links, webhook signature verification
 - **Webhook authority**: the frontend never sets Recovered
-- Merchant policy: Manual / Approval required / Automatic, with rupee caps
+- Merchant policy: **Manual** or **Run agent on every case**, with rupee caps
 - Demo tools: create demo events, batch ingest, demo inventory, demo reset (demo rows only)
 - Customer pay page token (`/recover/:token`) as a real pay-as-customer path
 
@@ -326,12 +326,10 @@ flowchart TD
   G --> H[Safety Engine]
   H -->|Blocked| I[Blocked action / escalate if none left]
   H -->|Allowed| J[Pending recovery action]
-  J --> K{Merchant policy}
+  J --> K{Settings}
   K -->|Manual| L[Merchant runs action]
-  K -->|Approval required| M[Approve then run]
-  K -->|Automatic + under ₹ cap| N[Auto-execute if Safety allows]
+  K -->|Run agent on every case + under ₹ cap| N[Agent executes if Safety allows]
   L --> O[Retry / send link / reminder]
-  M --> O
   N --> O
   O --> P[Gemini drafts message around real link]
   P --> Q[Customer pays via Razorpay Test]
@@ -382,13 +380,22 @@ sequenceDiagram
 | **Operations** | In recovery / recovered / escalated / stopped |
 | **Connect payments** | Razorpay Test keys + webhook URL |
 | **Demo health** | Demo readiness + reset demo data only |
-| **Settings** | Manual / approval / automatic + rupee caps |
+| **Settings** | Manual or Run agent on every case + rupee caps |
 | **Batch demo** | Many failures → measured recovery across the batch |
 | **Customer pay** | `/recover/:token` — pay as the customer |
 
 **Amounts** in the API are **paise** (₹1 = 100). The UI shows rupees.
 
 **Stopped** = case status `CLOSED` (recovery ended without a verified capture). **Escalated** is different: no further automated action; it does not become Stopped by itself.
+
+### Settings (how the desk runs)
+
+| Mode | What happens |
+| --- | --- |
+| **Manual** (default) | You click Execute. Timeline shows **Manual**. |
+| **Run agent on every case** | After Save, the agent processes every *allowed* open case in the background. Timeline shows **Agent**. Over cap / high-value / Safety block / escalated are skipped. |
+
+Neither mode sets Recovered. Customer still pays; webhook still confirms.
 
 ---
 
@@ -532,11 +539,11 @@ Everything else we hit while shipping — still real, but not the core money-int
 
 **Fix:** Store and compute in **paise**; format INR in the UI. Parse naive timestamps as UTC and display **Asia/Kolkata**.
 
-### 7. Automatic recovery vs high-value payments
+### 7. Agent vs high-value payments
 
 **Problem:** Auto-run on large amounts is unsafe.
 
-**Fix:** Settings: Manual by default. Automatic only when mode is Automatic, the checkbox is on, Safety allows the action, and amount is **under** the auto cap (default **₹5,000**). High-value (default **₹10,000**) needs approval. Automatic still never marks Recovered.
+**Fix:** Settings default **Manual**. **Run agent on every case** only after you save that mode. Safety must allow the action, amount under the agent cap (default **₹5,000**). High-value (default **₹10,000**) still needs you. The agent never marks Recovered.
 
 ### 8. CORS / Postgres on Render
 

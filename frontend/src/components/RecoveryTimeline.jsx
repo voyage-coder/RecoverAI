@@ -27,6 +27,8 @@ function stripRunnerPrefix(text) {
     .replace(/^\[Merchant\]\s*/i, "")
     .trim();
 }
+
+function actionOutcome(status) {
   const key = upper(status);
   if (key === "EXECUTED") {
     return { title: "Action succeeded", badge: "Succeeded", tone: "success", status: "SUCCESS" };
