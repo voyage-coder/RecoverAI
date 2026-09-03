@@ -49,10 +49,13 @@ def get_customer_recovery(
                 status_code=404,
                 detail="This recovery link is invalid.",
             ) from exc
-        if code == "expired_token":
+        if code in {"expired_token", "revoked_token"}:
             raise HTTPException(
                 status_code=410,
-                detail="This recovery link has expired.",
+                detail=(
+                    "This recovery link has expired or was replaced. "
+                    "Open the latest Pay as customer link from the case."
+                ),
             ) from exc
         if code == "case_not_found":
             raise HTTPException(

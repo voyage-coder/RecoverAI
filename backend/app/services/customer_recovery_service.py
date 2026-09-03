@@ -204,6 +204,7 @@ def create_customer_recovery_link(
     case_id: str,
     *,
     ttl_hours: int | None = None,
+    revoke_previous: bool = True,
 ) -> dict:
     case = _get_case(db, case_id)
 
@@ -222,17 +223,19 @@ def create_customer_recovery_link(
     if _is_backend_recovered(case, payment, result):
         raise ValueError("already_recovered")
 
-    # Revoke prior active links for this case.
     now = _now()
-    prior = db.scalars(
-        select(CustomerRecoveryLink).where(
-            CustomerRecoveryLink.case_id == case_id,
-            CustomerRecoveryLink.revoked_at.is_(None),
-        )
-    ).all()
-    for item in prior:
-        item.revoked_at = now
-        db.add(item)
+    # Merchant "Regenerate" revokes old /recover/ URLs (they 410).
+    # Executor fallbacks must not revoke — that broke Pay as customer mid-demo.
+    if revoke_previous:
+        prior = db.scalars(
+            select(CustomerRecoveryLink).where(
+                CustomerRecoveryLink.case_id == case_id,
+                CustomerRecoveryLink.revoked_at.is_(None),
+            )
+        ).all()
+        for item in prior:
+            item.revoked_at = now
+            db.add(item)
 
     raw_token = secrets.token_urlsafe(32)
     hours = ttl_hours if ttl_hours is not None else DEFAULT_TTL_HOURS
@@ -294,7 +297,7 @@ def resolve_customer_recovery(
         raise ValueError("invalid_token")
 
     if link.revoked_at is not None:
-        raise ValueError("expired_token")
+        raise ValueError("revoked_token")
 
     if link.expires_at <= _now():
         raise ValueError("expired_token")

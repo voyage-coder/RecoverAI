@@ -163,6 +163,10 @@ function CustomerRecoveryPanel({ caseId, caseStatus }) {
       {status?.note && (
         <p className="text-xs text-ink-faint">{status.note}</p>
       )}
+      <p className="text-xs text-ink-faint">
+        After you regenerate, only the newest Pay as customer URL works.
+        Do not reuse an old tab or an old Click here from earlier messages.
+      </p>
     </div>
   );
 }

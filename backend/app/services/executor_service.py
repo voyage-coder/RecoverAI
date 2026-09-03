@@ -65,12 +65,20 @@ def _existing_pay_url(db: Session, case_id: str) -> str | None:
 
 
 def _customer_pay_url(db: Session, case: RecoveryCase) -> str | None:
+    existing = _existing_pay_url(db, case.id)
+    if existing and "/recover/" in existing:
+        return existing
+
     from app.services.customer_recovery_service import (
         create_customer_recovery_link,
     )
 
     try:
-        created = create_customer_recovery_link(db, case.id)
+        created = create_customer_recovery_link(
+            db,
+            case.id,
+            revoke_previous=False,
+        )
     except ValueError:
         return None
 

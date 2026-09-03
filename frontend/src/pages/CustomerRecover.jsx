@@ -167,6 +167,13 @@ function CustomerRecover() {
           <p className="mt-3 text-sm leading-relaxed text-[#5c584f]">
             {error}
           </p>
+          {errorKind === "expired" ? (
+            <p className="mt-3 text-sm leading-relaxed text-[#5c584f]">
+              On the merchant case, click Generate payment link (or use the
+              newest Click here), then open that URL. An older tab will show
+              expired after a new link is created.
+            </p>
+          ) : null}
         </div>
       </div>
     );
