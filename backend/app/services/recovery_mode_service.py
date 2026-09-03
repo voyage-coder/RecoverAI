@@ -17,8 +17,13 @@ from app.schema import (
     RecoveryAction,
     RecoveryCase,
     ActionStatus,
+    CaseStatus,
+    RecoveryMode,
 )
-from app.services.merchant_settings_service import classify_approval
+from app.services.merchant_settings_service import (
+    classify_approval,
+    get_or_create_settings,
+)
 from app.services.executor_service import execute_action
 
 logger = logging.getLogger(__name__)
@@ -79,3 +84,88 @@ def apply_merchant_recovery_mode(
             "Automatic execution failed. Merchant can retry from Operations."
         )
     return decision
+
+
+def process_automatic_recovery_queue(db: Session) -> dict:
+    """
+    When Automatic mode is on, run every open case that is still allowed.
+
+    Safety Engine, rupee caps, high-value threshold, and escalated /
+    recovered / closed cases are skipped. Does not mark Recovered.
+    """
+    settings = get_or_create_settings(db)
+    auto_on = (
+        settings.recovery_mode == RecoveryMode.AUTOMATIC
+        and bool(settings.automatic_recovery_enabled)
+    )
+    if not auto_on:
+        return {
+            "ran": False,
+            "considered": 0,
+            "executed": 0,
+            "skipped": 0,
+            "failed": 0,
+        }
+
+    from app.services.orchestrator_service import process_case
+
+    case_ids = list(
+        db.scalars(
+            select(RecoveryCase.id).where(
+                RecoveryCase.status.notin_(
+                    [
+                        CaseStatus.RECOVERED,
+                        CaseStatus.CLOSED,
+                        CaseStatus.ESCALATED,
+                    ]
+                )
+            )
+        ).all()
+    )
+
+    executed = 0
+    skipped = 0
+    failed = 0
+
+    for case_id in case_ids:
+        case = db.get(RecoveryCase, case_id)
+        if case is None:
+            continue
+        if case.status in (
+            CaseStatus.RECOVERED,
+            CaseStatus.CLOSED,
+            CaseStatus.ESCALATED,
+        ):
+            skipped += 1
+            continue
+        try:
+            process_case(db, case)
+            db.flush()
+            db.refresh(case)
+            decision = apply_merchant_recovery_mode(
+                db,
+                case,
+                auto_execute=True,
+            )
+            if decision.get("auto_executed"):
+                executed += 1
+            else:
+                skipped += 1
+        except Exception:
+            logger.exception(
+                "Automatic queue failed for case=%s",
+                case_id,
+            )
+            failed += 1
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    return {
+        "ran": True,
+        "considered": len(case_ids),
+        "executed": executed,
+        "skipped": skipped,
+        "failed": failed,
+    }

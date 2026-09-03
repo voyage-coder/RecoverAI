@@ -93,7 +93,17 @@ function Settings() {
           Math.round(Number(form.high_value_approval_threshold) * 100),
       });
       setSettings(data);
-      setMessage("Recovery policy saved.");
+      const run = data.automatic_run;
+      if (run?.ran) {
+        setMessage(
+          `Policy saved. Agent processed ${run.considered} open case(s): ` +
+            `${run.executed} action(s) run, ${run.skipped} skipped ` +
+            `(cap, safety, waiting, or already acted).` +
+            (run.failed ? ` ${run.failed} failed.` : "")
+        );
+      } else {
+        setMessage("Recovery policy saved.");
+      }
     } catch (err) {
       console.error(err);
       setError(parseApiError(err));
@@ -108,7 +118,10 @@ function Settings() {
         <p className="eyebrow">Configuration</p>
         <h2 className="page-title">Settings</h2>
         <p className="mt-2 max-w-2xl text-sm text-ink-mute">
-          Set how RecoverAI runs recovery actions. Payment keys are on{" "}
+          Set how RecoverAI runs recovery actions. Switching to{" "}
+          <span className="font-semibold text-ink">Automatic</span> runs the
+          agent on every open case that is still allowed (under your rupee
+          cap, Safety Engine, not escalated). Payment keys are on{" "}
           <Link to="/integrations" className="font-semibold text-pine">
             Connect payments
           </Link>
@@ -143,6 +156,7 @@ function Settings() {
                       setForm((prev) => ({
                         ...prev,
                         recovery_mode: mode.id,
+                        automatic_recovery_enabled: mode.id === "AUTOMATIC",
                       }))
                     }
                   />

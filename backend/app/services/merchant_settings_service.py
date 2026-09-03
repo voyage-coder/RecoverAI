@@ -111,6 +111,9 @@ def update_policy(db: Session, body: dict) -> MerchantSettings:
             body["automatic_recovery_enabled"]
         )
 
+    if settings.recovery_mode == RecoveryMode.AUTOMATIC:
+        settings.automatic_recovery_enabled = True
+
     for field, attr, minimum, maximum in (
         (
             "max_automatic_recovery_amount",

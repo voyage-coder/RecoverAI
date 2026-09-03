@@ -599,6 +599,7 @@ class MerchantSettingsResponse(BaseModel):
     credentials_last_test_ok: Optional[bool] = None
     credentials_last_test_detail: Optional[str] = None
     updated_at: Optional[str] = None
+    automatic_run: Optional[dict] = None
 
 
 class ConnectionTestResponse(BaseModel):

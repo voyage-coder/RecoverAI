@@ -31,6 +31,9 @@ from app.services.merchant_settings_service import (
     store_razorpay_credentials,
     update_policy,
 )
+from app.services.recovery_mode_service import (
+    process_automatic_recovery_queue,
+)
 
 
 router = APIRouter(
@@ -97,7 +100,10 @@ def put_merchant_settings(
     try:
         settings = update_policy(db, body.model_dump(exclude_unset=True))
         db.commit()
-        return public_settings_payload(settings)
+        payload = public_settings_payload(settings)
+        queue = process_automatic_recovery_queue(db)
+        payload["automatic_run"] = queue
+        return payload
     except ValueError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
