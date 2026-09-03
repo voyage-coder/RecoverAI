@@ -414,6 +414,8 @@ def execute_human_escalation(
 def execute_action(
     db: Session,
     action: RecoveryAction,
+    *,
+    executed_by: ActorType = ActorType.HUMAN_OPERATOR,
 ):
 
     case = db.scalar(
@@ -524,7 +526,12 @@ def execute_action(
 
         action.executed_at = datetime.utcnow()
 
-        action.result_text = result
+        runner = (
+            "Automatic agent"
+            if executed_by == ActorType.AI_AGENT
+            else "Merchant"
+        )
+        action.result_text = f"[{runner}] {result}"
 
         # Flush so Recovery Loop does not treat this action
         # as still PENDING / PROCESSING.
@@ -605,11 +612,11 @@ def execute_action(
 
             action_type="ACTION_EXECUTED",
 
-            actor=ActorType.AI_AGENT,
+            actor=executed_by,
 
             details=(
-                f"Executed strategy: "
-                f"{strategy.value}"
+                f"{runner} executed {strategy.value}. "
+                f"{result}"
             ),
 
             timestamp=datetime.utcnow(),

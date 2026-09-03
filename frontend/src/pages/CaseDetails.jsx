@@ -657,6 +657,15 @@ function CaseDetails() {
               const resultLine = action.result_text
                 ? String(action.result_text).replace(/\s+/g, " ").trim()
                 : null;
+              const runner = resultLine?.startsWith("[Automatic agent]")
+                ? "Agent"
+                : resultLine?.startsWith("[Merchant]")
+                  ? "Manual"
+                  : null;
+              const shownResult = resultLine
+                ?.replace(/^\[Automatic agent\]\s*/i, "")
+                .replace(/^\[Merchant\]\s*/i, "")
+                .trim();
               return (
                 <VerticalStepItem
                   key={action.id}
@@ -667,11 +676,11 @@ function CaseDetails() {
                   }
                   title={displayLabel(action.action_type)}
                   detail={
-                    resultLine && resultLine.length > 72
-                      ? `${resultLine.slice(0, 72).trim()}…`
-                      : resultLine
+                    shownResult && shownResult.length > 72
+                      ? `${shownResult.slice(0, 72).trim()}…`
+                      : shownResult
                   }
-                  badge={badge}
+                  badge={runner ? `${badge} · ${runner}` : badge}
                   badgeTone={tone}
                   right={
                     <span className="font-mono text-[11px] text-ink-faint">

@@ -19,6 +19,7 @@ from app.schema import (
     ActionStatus,
     CaseStatus,
     RecoveryResultStatus,
+    ActorType,
 )
 from app.services.executor_service import execute_action
 from app.services.orchestrator_service import process_case
@@ -173,7 +174,11 @@ def execute_pending_action_for_case(
         pass
 
     try:
-        action = execute_action(db, pending)
+        action = execute_action(
+            db,
+            pending,
+            executed_by=ActorType.HUMAN_OPERATOR,
+        )
     except ValueError as exc:
         if str(exc) == "action_already_terminal":
             raise ValueError("action_already_terminal") from exc

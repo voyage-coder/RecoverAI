@@ -14,7 +14,19 @@ function shortText(value, max = 72) {
   return `${text.slice(0, max).trim()}…`;
 }
 
-function actionOutcome(status) {
+function runnerFromResult(text) {
+  const value = String(text || "");
+  if (value.startsWith("[Automatic agent]")) return "Automatic agent";
+  if (value.startsWith("[Merchant]")) return "Merchant";
+  return null;
+}
+
+function stripRunnerPrefix(text) {
+  return String(text || "")
+    .replace(/^\[Automatic agent\]\s*/i, "")
+    .replace(/^\[Merchant\]\s*/i, "")
+    .trim();
+}
   const key = upper(status);
   if (key === "EXECUTED") {
     return { title: "Action succeeded", badge: "Succeeded", tone: "success", status: "SUCCESS" };
@@ -102,13 +114,16 @@ function buildTimelineEvents(timeline) {
       status === "FAILED";
 
     if (outcomeKnown) {
+      const runner = runnerFromResult(action.result_text);
       events.push({
         id: `action-outcome-${action.id}`,
-        title: outcome.title,
-        description: shortText(action.result_text) || label,
+        title: runner
+          ? `${outcome.title} · ${runner}`
+          : outcome.title,
+        description: shortText(stripRunnerPrefix(action.result_text)) || label,
         status: outcome.status,
-        badge: outcome.badge,
-        tone: outcome.tone,
+        badge: runner || outcome.badge,
+        tone: runner === "Automatic agent" ? "info" : outcome.tone,
         timestamp: action.executed_at || action.created_at,
       });
     } else if (status === "PENDING" || status === "PROCESSING") {

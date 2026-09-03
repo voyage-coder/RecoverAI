@@ -19,6 +19,7 @@ from app.schema import (
     ActionStatus,
     CaseStatus,
     RecoveryMode,
+    ActorType,
 )
 from app.services.merchant_settings_service import (
     classify_approval,
@@ -68,7 +69,11 @@ def apply_merchant_recovery_mode(
     db.refresh(case)
 
     try:
-        execute_action(db, pending)
+        execute_action(
+            db,
+            pending,
+            executed_by=ActorType.AI_AGENT,
+        )
         db.flush()
         decision["auto_executed"] = True
         decision["approval_state"] = "AUTO_EXECUTED"

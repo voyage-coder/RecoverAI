@@ -51,10 +51,10 @@ const LABEL_MAP = {
   WHATSAPP: "WhatsApp",
   OUTBOUND: "Outbound",
   INBOUND: "Inbound",
-  AI_AGENT: "AI Agent",
+  AI_AGENT: "Automatic agent",
   SYSTEM: "System",
   CUSTOMER: "Customer",
-  HUMAN_OPERATOR: "Human Operator",
+  HUMAN_OPERATOR: "Merchant (manual)",
   SAFETY_ENGINE: "Safety Engine",
 };
 

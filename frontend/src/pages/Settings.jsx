@@ -165,6 +165,11 @@ function Settings() {
                 </label>
               ))}
             </div>
+            <p className="mt-3 text-xs text-ink-mute">
+              Automatic runs show as <span className="font-semibold">Agent</span>{" "}
+              on the case. Actions you run from Operations or the case page show
+              as <span className="font-semibold">Manual</span>.
+            </p>
           </div>
 
           <label className="flex items-center gap-3 text-sm text-ink">
