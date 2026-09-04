@@ -29,6 +29,7 @@ from app.schema import (
     RecoveryAction,
     RecoveryCase,
     RecoveryMode,
+    StrategyType,
 )
 from app.services.event_ingestion_service import ingest_payment_failed_event
 from app.services.merchant_settings_service import (
@@ -464,12 +465,37 @@ def main():
         case_cap = db.get(RecoveryCase, over_cap["case_id"])
         action_cap = _latest_action(db, case_cap.id)
         listed_cap = enrich_case_operations(db, case_cap)
+        from types import SimpleNamespace
+
+        link_policy = classify_approval(
+            db,
+            case_cap,
+            SimpleNamespace(
+                action_type=StrategyType.SEND_PAYMENT_LINK,
+                status=ActionStatus.PENDING,
+            ),
+        )
+        retry_cap_policy = classify_approval(
+            db,
+            case_cap,
+            SimpleNamespace(
+                action_type=StrategyType.IMMEDIATE_RETRY,
+                status=ActionStatus.PENDING,
+            ),
+        )
         report.check(
-            "Amount over auto cap requires approval (not auto-executed)",
-            action_cap.status == ActionStatus.PENDING
-            and listed_cap.get("approval_state") == "AWAITING_APPROVAL"
+            "Payment link over cap is agent-eligible",
+            link_policy.get("auto_eligible") is True
+            and action_cap.status == ActionStatus.PENDING
             and case_cap.status != CaseStatus.RECOVERED,
-            listed_cap.get("policy_reason"),
+            link_policy.get("reason"),
+        )
+        report.check(
+            "Retry over auto cap requires approval",
+            retry_cap_policy.get("auto_eligible") is False
+            and retry_cap_policy.get("requires_approval") is True
+            and case_cap.status != CaseStatus.RECOVERED,
+            retry_cap_policy.get("reason"),
         )
 
         _set_policy(

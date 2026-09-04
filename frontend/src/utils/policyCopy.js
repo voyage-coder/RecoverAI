@@ -8,8 +8,8 @@ export function friendlyPolicyMessage(reason) {
     text.includes("high-value approval")
   ) {
     return (
-      "This payment is large, so the agent did not send anything. " +
-      "In Settings choose Manual, open this case, then click Execute."
+      "This payment is large, so the agent did not charge the original method. " +
+      "If a payment link is waiting, click Execute on this case to send it."
     );
   }
   if (
@@ -19,14 +19,14 @@ export function friendlyPolicyMessage(reason) {
     text.includes("above the agent")
   ) {
     return (
-      "This payment is above the agent rupee limit, so the agent did not send anything. " +
-      "In Settings choose Manual, open this case, then click Execute."
+      "This payment is above the agent rupee limit, so the agent did not charge the original method. " +
+      "If a payment link is waiting, click Execute on this case to send it."
     );
   }
   if (text.includes("retry")) {
     return (
       "The agent already used the allowed payment retries, so it did not charge the original method again. " +
-      "A payment link or reminder can still run. Or choose Manual and click Execute."
+      "If a payment link is waiting, click Execute on this case to send it."
     );
   }
   if (text.includes("did not send") || text.includes("choose manual")) {

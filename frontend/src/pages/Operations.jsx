@@ -71,7 +71,11 @@ function OperationsCaseCard({
   const priority = priorityFromRisk(item.risk_level);
   const canExecute =
     item.approval_state === "AWAITING_APPROVAL" ||
-    item.approval_state === "READY_TO_EXECUTE";
+    item.approval_state === "READY_TO_EXECUTE" ||
+    (upper(item.recommended_action) === "SEND_PAYMENT_LINK" &&
+      ["AUTO_ELIGIBLE", "ACTION_WAITING"].includes(
+        upper(item.approval_state)
+      ));
   const isRecovered = upper(item.status) === "RECOVERED";
 
   return (
@@ -205,20 +209,20 @@ function OperationsCaseCard({
               onClick={() => onRunAgent(item.id)}
             />
           </div>
-        ) : (
-          canExecute &&
-          !isRecovered && (
-            <button
-              type="button"
-              disabled={executingId === item.id}
-              onClick={() => onExecute(item.id)}
-              className="inline-flex items-center rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-            >
-              {item.approval_state === "AWAITING_APPROVAL"
+        ) : null}
+        {canExecute && !isRecovered && (
+          <button
+            type="button"
+            disabled={executingId === item.id}
+            onClick={() => onExecute(item.id)}
+            className="inline-flex items-center rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+          >
+            {upper(item.recommended_action) === "SEND_PAYMENT_LINK"
+              ? "Send payment link"
+              : item.approval_state === "AWAITING_APPROVAL"
                 ? "Approve & run"
                 : "Run recommended action"}
-            </button>
-          )
+          </button>
         )}
       </div>
     </div>

@@ -61,24 +61,32 @@ function RecoveryOperationsPanel({
 
   const availableOperations = useMemo(() => {
     const ops = [];
+    const waitingOnMerchant = Boolean(
+      pendingAction &&
+        !isTerminal &&
+        (["AWAITING_APPROVAL", "READY_TO_EXECUTE"].includes(
+          upper(recoveryCase?.approval_state)
+        ) ||
+          upper(pendingAction.action_type) === "SEND_PAYMENT_LINK")
+    );
 
-    if (agentMode) {
-      return ops;
-    }
-
-    if (pendingAction && !isTerminal) {
+    if (pendingAction && !isTerminal && (!agentMode || waitingOnMerchant)) {
       ops.push({
         key: "execute",
-        label: "Run recommended action",
+        label:
+          upper(pendingAction.action_type) === "SEND_PAYMENT_LINK"
+            ? "Send payment link"
+            : waitingOnMerchant
+              ? "Approve & run"
+              : "Run recommended action",
         description: "Runs the pending action through Safety Engine.",
         primary: true,
         onClick: onExecutePending,
       });
     }
 
-    // While awaiting a Razorpay webhook, do not offer "prepare next"
-    // — that caused confusing 400s after a successful TEST payment.
     if (
+      !agentMode &&
       !pendingAction &&
       !isTerminal &&
       !isEscalated &&
@@ -105,6 +113,7 @@ function RecoveryOperationsPanel({
     onExecutePending,
     onContinueRecovery,
     agentMode,
+    recoveryCase?.approval_state,
   ]);
 
   const showRunAgent =
@@ -125,7 +134,7 @@ function RecoveryOperationsPanel({
           <li>
             <span className="font-semibold text-ink">You:</span>{" "}
             {agentMode
-              ? "click Run Agent once per case. The agent then runs every permitted action."
+              ? "click Run Agent for allowed steps. If a payment link is waiting for you, click Execute on this case."
               : "run the recommended action."}
           </li>
           <li>
@@ -195,7 +204,7 @@ function RecoveryOperationsPanel({
             <StatusBadge value={pendingAction.status} />
           </div>
           <p className="mt-2 text-xs text-ink-mute">
-            Attempt #{pendingAction.attempt_number} · confirm before running
+            Attempt #{pendingAction.attempt_number} · send this if the agent left it for you
           </p>
         </div>
       )}

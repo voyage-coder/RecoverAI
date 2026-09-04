@@ -200,25 +200,36 @@ def payment_link_expiry_hours(db: Session) -> int:
     return max(1, min(hours, 24 * 30))
 
 
+_AGENT_COMMUNICATION_ACTIONS = {
+    "SEND_PAYMENT_LINK",
+    "SEND_EMAIL_REMINDER",
+    "SEND_SMS_REMINDER",
+    "SEND_WHATSAPP_MESSAGE",
+    "OFFER_ALT_PAYMENT_METHOD",
+}
+
+
 def merchant_policy_plain(policy: dict) -> str | None:
     """Short merchant-facing text when the agent is not allowed to execute."""
     reason = str(policy.get("reason") or "")
     if policy.get("high_value"):
         return (
-            "This payment is large, so the agent did not send anything. "
-            "In Settings choose Manual, open this case, then click Execute."
+            "This payment is large, so the agent did not charge the original "
+            "method. If a payment link is waiting, click Execute on this case "
+            "to send it — you do not need to switch to Manual."
         )
     if policy.get("over_auto_cap"):
         return (
-            "This payment is above the agent rupee limit, so the agent "
-            "did not send anything. In Settings choose Manual, open this "
-            "case, then click Execute."
+            "This payment is above the agent rupee limit, so the agent did "
+            "not charge the original method. If a payment link is waiting, "
+            "click Execute on this case to send it — you do not need to "
+            "switch to Manual."
         )
     if "retry limit" in reason.lower():
         return (
             "The agent already used the allowed payment retries, so it "
-            "did not charge the original method again. A payment link or "
-            "reminder can still run. Or choose Manual and click Execute."
+            "did not charge the original method again. A payment link can "
+            "still be sent — click Execute if it is waiting on this case."
         )
     return None
 
@@ -271,6 +282,16 @@ def classify_approval(
     elif mode == RecoveryMode.APPROVAL_REQUIRED:
         requires_approval = True
         reason = "Approval required before execution."
+    elif (
+        mode == RecoveryMode.AUTOMATIC
+        and auto_on
+        and action_type in _AGENT_COMMUNICATION_ACTIONS
+    ):
+        auto_eligible = True
+        reason = (
+            "The agent can send a payment link or reminder. "
+            "Rupee and high-value limits apply to charging the original method."
+        )
     elif high_value:
         requires_approval = True
         reason = (
@@ -491,7 +512,7 @@ def merchant_next_step(
         return {
             "code": "APPROVAL_REQUIRED",
             "label": (
-                "Agent will not send this — you can run it in Manual"
+                "Waiting for you to send this action"
                 if plain
                 else "Merchant approval required"
             ),

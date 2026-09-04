@@ -184,7 +184,8 @@ function Settings() {
               />
               <p className="mt-1 text-[11px] text-ink-faint">
                 If the failed payment is more than this, the agent will not
-                send anything. Switch to Manual and click Execute.
+                charge the original card/UPI. It can still send a payment link.
+                You can also click Execute on the case.
               </p>
             </div>
             <div>
@@ -204,8 +205,9 @@ function Settings() {
                 }
               />
               <p className="mt-1 text-[11px] text-ink-faint">
-                At this amount or more, the agent will not send anything. You
-                run it in Manual.
+                At this amount or more, the agent will not charge the original
+                method. A payment link can still be sent, or you click Execute
+                on the case.
               </p>
             </div>
             <div>

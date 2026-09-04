@@ -66,6 +66,29 @@ export function isCaseEligibleForRunAgent(
   return true;
 }
 
+export function needsMerchantExecute(
+  item,
+  { awaitingCustomerPayment = false } = {}
+) {
+  if (!item) return false;
+  const status = upper(item.status);
+  if (status === "RECOVERED" || status === "CLOSED") {
+    return false;
+  }
+  if (awaitingCustomerPayment) return false;
+  const approval = upper(item.approval_state);
+  if (
+    approval === "AWAITING_APPROVAL" ||
+    approval === "READY_TO_EXECUTE"
+  ) {
+    return true;
+  }
+  return (
+    upper(item.recommended_action) === "SEND_PAYMENT_LINK" &&
+    ["AUTO_ELIGIBLE", "ACTION_WAITING"].includes(approval)
+  );
+}
+
 export function runAgentButtonLabel({ running = false } = {}) {
   if (running) return "Running Agent...";
   return "Run Agent";

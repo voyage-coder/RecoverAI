@@ -563,8 +563,8 @@ def run_agent_for_case(db: Session, case_id: str) -> dict:
                 )
                 db.flush()
                 skip_text = merchant_policy_plain(decision) or (
-                    "The agent did not send this action. In Settings choose "
-                    "Manual, then click Execute on this case."
+                    "The agent did not send this action. Click Execute on "
+                    "this case to send it. You do not need to switch to Manual."
                 )
                 if executed_count:
                     skip_text = (

@@ -5,7 +5,7 @@ import RunAgentButton from "./RunAgentButton";
 import { formatINR } from "../utils/format";
 import { toLabel } from "../utils/labels";
 import { resolveActionStateLabel } from "../utils/customerJourney";
-import { isCaseEligibleForRunAgent } from "../utils/recoveryMode";
+import { isCaseEligibleForRunAgent, needsMerchantExecute } from "../utils/recoveryMode";
 import { policyBannerFromCase } from "../utils/policyCopy";
 
 function upper(value) {
@@ -50,8 +50,15 @@ function RecommendedActionCard({
           .includes("AWAITING")
       ));
 
+  const showMerchantExecute =
+    Boolean(pendingAction) &&
+    !isTerminal &&
+    (!agentMode ||
+      needsMerchantExecute(recoveryCase, { awaitingCustomerPayment }) ||
+      upper(pendingAction.action_type) === "SEND_PAYMENT_LINK");
   const showRunAgent =
     agentMode &&
+    !showMerchantExecute &&
     isCaseEligibleForRunAgent(recoveryCase, { awaitingCustomerPayment });
   const policyBanner = policyBannerFromCase(recoveryCase);
 
@@ -194,12 +201,14 @@ function RecommendedActionCard({
         {toLabel(strategy)}
       </h4>
       <p className="mt-2 text-sm text-ink-mute">
-        {agentMode
-          ? "Run Agent evaluates strategies, checks Safety, and executes every permitted action. It stops when it must wait for the customer, a Safety block, or a Settings limit."
-          : "Confirm to run this action. Recovery is confirmed only after the customer pays."}
+        {showMerchantExecute && agentMode
+          ? "The agent left this step for you. Send it here — you do not need to switch to Manual."
+          : agentMode
+            ? "Run Agent sends every permitted action. It stops when it must wait for the customer, Safety, or a Settings limit on charging the original method."
+            : "Confirm to run this action. Recovery is confirmed only after the customer pays."}
       </p>
 
-      {agentMode ? (
+      {agentMode && !showMerchantExecute ? (
         <>
           {agentButton}
           {policyNote}
@@ -212,7 +221,9 @@ function RecommendedActionCard({
           className="mt-5 inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-soft disabled:opacity-60"
         >
           <Play size={15} />
-          Run recommended action
+          {upper(strategy) === "SEND_PAYMENT_LINK"
+            ? "Send payment link"
+            : "Run recommended action"}
         </button>
       ) : (
         <div className="mt-5 rounded-xl border border-ink/10 bg-white p-4">

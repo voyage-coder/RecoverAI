@@ -292,9 +292,25 @@ def main():
         db.commit()
         case_cap = db.get(RecoveryCase, over["case_id"])
         report.check(
-            "Amount limit requires approval",
-            enrich_case_operations(db, case_cap).get("approval_state")
+            "Retry amount limit requires approval; payment link stays agent-eligible",
+            classify_approval(
+                db,
+                case_cap,
+                SimpleNamespace(
+                    action_type=StrategyType.IMMEDIATE_RETRY,
+                    status=ActionStatus.PENDING,
+                ),
+            ).get("approval_state")
             == "AWAITING_APPROVAL"
+            and classify_approval(
+                db,
+                case_cap,
+                SimpleNamespace(
+                    action_type=StrategyType.SEND_PAYMENT_LINK,
+                    status=ActionStatus.PENDING,
+                ),
+            ).get("auto_eligible")
+            is True
             and case_cap.status != CaseStatus.RECOVERED,
         )
 
