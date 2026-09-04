@@ -69,7 +69,6 @@ function RecommendedActionCard({
     <RunAgentButton
       className="mt-5"
       running={operating}
-      again={Boolean(latestExecuted)}
       onClick={() => onRunAgent?.()}
     />
   ) : null;
@@ -177,7 +176,7 @@ function RecommendedActionCard({
         </p>
         <p className="mt-2 text-sm text-ink-mute">
           {agentMode
-            ? "No pending action yet. Run Agent to analyze this case, select one strategy, and execute it if Safety allows."
+            ? "No pending action yet. Run Agent to analyze this case and execute every action Safety and your Settings allow."
             : "No pending recovery action right now. Use Prepare next action if the customer is not already paying."}
         </p>
         {agentButton}
@@ -196,7 +195,7 @@ function RecommendedActionCard({
       </h4>
       <p className="mt-2 text-sm text-ink-mute">
         {agentMode
-          ? "Run Agent evaluates strategies, selects one, checks Safety, and executes only that action."
+          ? "Run Agent evaluates strategies, checks Safety, and executes every permitted action. It stops when it must wait for the customer, a Safety block, or a Settings limit."
           : "Confirm to run this action. Recovery is confirmed only after the customer pays."}
       </p>
 

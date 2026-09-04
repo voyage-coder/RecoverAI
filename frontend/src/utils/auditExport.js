@@ -225,7 +225,7 @@ export function downloadAuditExcel({ recoveryCase, timeline, decision }) {
   blocks.push("How to read this file");
   blocks.push(
     csvCell(
-      "Agent = RecoverAI ran the action after you clicked Run Agent on that case. You (manual) = you clicked Execute. Safety check Passed means the plan was allowed. Did not pass means it was blocked and not executed. Ran successfully means the action was sent — it does not mean money is recovered. Recovered only after a verified Razorpay payment.captured webhook."
+      "Agent = RecoverAI ran permitted actions after you clicked Run Agent on that case. You (manual) = you clicked Execute. Safety check Passed means the plan was allowed. Did not pass means it was blocked and not executed. Ran successfully means the action was sent — it does not mean money is recovered. Recovered only after a verified Razorpay payment.captured webhook."
     )
   );
   blocks.push("");
@@ -420,7 +420,7 @@ export function downloadAuditPdf({ recoveryCase, timeline, decision }) {
     "This file is for merchants and reviewers. It is not a bank statement."
   );
   paragraph(
-    "Agent = RecoverAI ran the action after you clicked Run Agent on that case. You (manual) = you clicked Execute on the desk. Older rows may have a blank Who column if they ran before this labelling existed."
+    "Agent = RecoverAI ran permitted actions after you clicked Run Agent on that case. You (manual) = you clicked Execute on the desk. Older rows may have a blank Who column if they ran before this labelling existed."
   );
   paragraph(
     "Safety check Passed means the Safety Engine allowed the selected plan. Did not pass means the plan was blocked and not executed. Ran successfully means RecoverAI sent the retry, link, or message. It does not mean the customer paid. Money is Recovered only after Razorpay sends a verified payment.captured webhook."

@@ -77,7 +77,7 @@ function Settings() {
       setSettings(data);
       if (mode === "AUTOMATIC") {
         setMessage(
-          "Saved. Eligible cases now show Run Agent. Nothing ran automatically — trigger one case at a time."
+          "Saved. Eligible cases now show Run Agent. One click on a case runs every permitted action — nothing ran just because you saved."
         );
       } else {
         setMessage("Recovery policy saved.");
@@ -98,13 +98,13 @@ function Settings() {
         <p className="mt-2 max-w-2xl text-sm text-ink-mute">
           Two modes for the demo.{" "}
           <span className="font-semibold text-ink">Manual</span> — you click
-          Execute.{" "}
+          Execute for each action.{" "}
           <span className="font-semibold text-ink">
             Run agent on every case
           </span>{" "}
-          — after save, each eligible case gets a Run Agent button. The agent
-          runs only when you click it. Neither mode marks Recovered; only a
-          Razorpay webhook does. Keys are on{" "}
+          — after save, each eligible case gets a Run Agent button. One click
+          runs every action Safety and your limits allow on that case. Neither
+          mode marks Recovered; only a Razorpay webhook does. Keys are on{" "}
           <Link to="/integrations" className="font-semibold text-pine">
             Connect payments
           </Link>

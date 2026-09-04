@@ -16,6 +16,11 @@ import {
   toLabel,
 } from "../utils/labels";
 import { isAgentRecoveryMode } from "../utils/recoveryMode";
+import {
+  markAgentRunStarted,
+  clearAgentRunStarted,
+  shouldKeepAgentRunMark,
+} from "../utils/agentRunState";
 
 function RecoveryCases() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -133,8 +138,10 @@ function RecoveryCases() {
     if (executingId) return;
     setExecutingId(caseId);
     setActionError(null);
+    markAgentRunStarted(caseId);
     try {
       const result = await runRecoveryAgent(caseId);
+      clearAgentRunStarted(caseId);
       if (result?.blocked) {
         setActionError(result.result_text || "Safety blocked this plan.");
       } else if (result?.agent_skipped) {
@@ -143,6 +150,9 @@ function RecoveryCases() {
       await loadCases();
     } catch (err) {
       console.error(err);
+      if (!shouldKeepAgentRunMark(err)) {
+        clearAgentRunStarted(caseId);
+      }
       setActionError(parseApiError(err));
     } finally {
       setExecutingId(null);

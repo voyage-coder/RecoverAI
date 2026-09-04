@@ -6,6 +6,8 @@ import { toLabel } from "../utils/labels";
 import OriginBadges from "./OriginBadges";
 import RunAgentButton from "./RunAgentButton";
 import { isCaseEligibleForRunAgent } from "../utils/recoveryMode";
+import { isCaseRowBusy } from "../utils/agentRunState";
+import AgentRunningBanner from "./AgentRunningBanner";
 
 function CaseTable({
   cases = [],
@@ -92,11 +94,17 @@ function CaseTable({
                   {agentMode && (
                     <td className="px-4 py-4">
                       {isCaseEligibleForRunAgent(item) ? (
-                        <RunAgentButton
-                          className="px-3 py-1.5 text-xs"
-                          running={executingId === item.id}
-                          onClick={() => onRunAgent?.(item.id)}
-                        />
+                        <div className="space-y-2">
+                          <AgentRunningBanner
+                            compact
+                            visible={isCaseRowBusy(item, executingId)}
+                          />
+                          <RunAgentButton
+                            className="px-3 py-1.5 text-xs"
+                            running={isCaseRowBusy(item, executingId)}
+                            onClick={() => onRunAgent?.(item.id)}
+                          />
+                        </div>
                       ) : null}
                     </td>
                   )}
@@ -157,10 +165,14 @@ function CaseTable({
               </div>
             </Link>
             {agentMode && isCaseEligibleForRunAgent(item) && (
-              <div className="mt-3">
+              <div className="mt-3 space-y-2">
+                <AgentRunningBanner
+                  compact
+                  visible={isCaseRowBusy(item, executingId)}
+                />
                 <RunAgentButton
                   className="px-3 py-1.5 text-xs"
-                  running={executingId === item.id}
+                  running={isCaseRowBusy(item, executingId)}
                   onClick={() => onRunAgent?.(item.id)}
                 />
               </div>

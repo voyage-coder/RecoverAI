@@ -94,7 +94,7 @@ export const acknowledgeProviderEvent = async (payload) => {
   return response.data;
 };
 
-const AGENT_TIMEOUT_MS = 180000;
+const AGENT_TIMEOUT_MS = 300000;
 
 export const executePendingRecoveryAction = async (caseId) => {
   const response = await api.post(
@@ -204,7 +204,7 @@ export function parseApiError(error) {
   if (error?.code === "ECONNABORTED" || /timeout/i.test(String(error?.message || ""))) {
     return (
       "This is still running on the server (AI or Razorpay can take a while). " +
-      "Wait about a minute, then refresh. Do not click Run Agent again yet."
+      "Wait a couple of minutes, then refresh. Do not click Run Agent again yet."
     );
   }
   if (!error?.response) {

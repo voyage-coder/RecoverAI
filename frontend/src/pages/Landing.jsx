@@ -41,7 +41,7 @@ const CAPABILITIES = [
     to: "/settings",
     title: "Choose how recovery runs",
     blurb:
-      "Manual, or Run Agent per eligible case — with a rupee cap so high-value stays with you.",
+      "Manual, or Run Agent per eligible case. One click runs every permitted action on that case — with a rupee cap so high-value stays with you.",
     icon: SlidersHorizontal,
     tone: "bg-sand-soft text-sand",
   },
@@ -257,14 +257,15 @@ function Landing() {
             <p className="mt-3 text-sm leading-relaxed text-ink-mute">
               Two modes. Safety Engine still blocks unsafe actions. Saving
               agent mode does not process cases. You click Run Agent on one
-              case. Recovered only after Razorpay verifies capture.
+              case; the agent then runs every permitted action. Recovered only
+              after Razorpay verifies capture.
             </p>
             <ul className="mt-6 space-y-3 text-sm">
               <li className="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-panel">
                 <span className="font-semibold text-ink">Manual</span>
                 <span className="mt-0.5 block text-ink-mute">
                   You Execute each action from the case or Operations. Timeline
-                  tags it Manual.
+                  tags it Manual. Use this when you want to step through the demo.
                 </span>
               </li>
               <li className="rounded-xl border border-pine/20 bg-pine-soft/40 px-4 py-3">
@@ -272,9 +273,10 @@ function Landing() {
                   Run agent on every case
                 </span>
                 <span className="mt-0.5 block text-ink-mute">
-                  After save, eligible cases show a Run Agent button. The agent
-                  runs only when you click it. Tagged Agent. Default cap ₹5,000.
-                  High-value (₹10,000) still needs you.
+                  After save, eligible cases show a Run Agent button. One click
+                  runs every Safety- and limit-allowed action on that case.
+                  Tagged Agent. Default cap ₹5,000. High-value (₹10,000) still
+                  needs you. Stops when the customer must pay.
                 </span>
               </li>
             </ul>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw, Sparkles, FileDown, FileSpreadsheet } from "lucide-react";
 import StatusBadge from "../components/StatusBadge";
@@ -11,7 +11,7 @@ import RecommendedActionCard from "../components/RecommendedActionCard";
 import AIRecoveryDecision from "../components/AIRecoveryDecision";
 import CustomerRecoveryJourney from "../components/CustomerRecoveryJourney";
 import { VerticalStepItem, VerticalStepList } from "../components/VerticalStepList";
-import OriginBadges from "../components/OriginBadges";
+import AgentRunningBanner from "../components/AgentRunningBanner";
 import LoadingState, {
   ErrorState,
   EmptyState,
@@ -39,6 +39,13 @@ import {
 } from "../utils/auditExport";
 import { isAgentRecoveryMode } from "../utils/recoveryMode";
 import { policyBannerFromCase, friendlyPolicyMessage } from "../utils/policyCopy";
+import {
+  markAgentRunStarted,
+  clearAgentRunStarted,
+  isAgentBusy,
+  shouldKeepAgentRunMark,
+  timelineHasProcessing,
+} from "../utils/agentRunState";
 
 const POLL_INTERVAL_MS = 8000;
 const NA = "Not available";
@@ -116,12 +123,14 @@ function CaseDetails() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [checkoutConfig, setCheckoutConfig] = useState(null);
   const [operating, setOperating] = useState(false);
+  const [agentTick, setAgentTick] = useState(0);
   const [operationMessage, setOperationMessage] = useState(null);
   const [operationWarning, setOperationWarning] = useState(null);
   const [operationError, setOperationError] = useState(null);
   const [postCheckoutPolling, setPostCheckoutPolling] = useState(false);
   const [openingPayLink, setOpeningPayLink] = useState(false);
   const [agentMode, setAgentMode] = useState(false);
+  const sawProcessingRef = useRef(false);
 
   const loadCaseData = useCallback(
     async ({ soft = false } = {}) => {
@@ -200,11 +209,20 @@ function CaseDetails() {
   }, []);
 
   useEffect(() => {
-    if (!shouldPollRecoveryCase(recoveryCase) && !postCheckoutPolling) {
+    const busy =
+      operating ||
+      timelineHasProcessing(timeline) ||
+      isAgentBusy({ caseId, timeline, operating });
+    if (
+      !shouldPollRecoveryCase(recoveryCase) &&
+      !postCheckoutPolling &&
+      !busy
+    ) {
       return undefined;
     }
 
-    const intervalMs = postCheckoutPolling ? 3000 : POLL_INTERVAL_MS;
+    const intervalMs =
+      postCheckoutPolling || busy ? 2500 : POLL_INTERVAL_MS;
     const intervalId = window.setInterval(() => {
       loadCaseData({ soft: true });
     }, intervalMs);
@@ -215,6 +233,9 @@ function CaseDetails() {
     recoveryCase?.id,
     loadCaseData,
     postCheckoutPolling,
+    operating,
+    timeline,
+    caseId,
   ]);
 
   useEffect(() => {
@@ -272,13 +293,37 @@ function CaseDetails() {
     [recoveryCase, timeline, paymentDetails]
   );
 
+  const agentBusy = useMemo(
+    () => isAgentBusy({ operating, timeline, caseId }),
+    [operating, timeline, caseId, agentTick]
+  );
+
+  useEffect(() => {
+    if (!agentBusy) return undefined;
+    const id = window.setInterval(() => {
+      setAgentTick((n) => n + 1);
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [agentBusy]);
+
+  useEffect(() => {
+    const processingNow = timelineHasProcessing(timeline);
+    if (processingNow) sawProcessingRef.current = true;
+    if (sawProcessingRef.current && !processingNow && !operating) {
+      clearAgentRunStarted(caseId);
+      sawProcessingRef.current = false;
+    }
+  }, [timeline, operating, caseId]);
+
   const runOperatorAction = async (actionFn) => {
     setOperating(true);
     setOperationError(null);
     setOperationMessage(null);
     setOperationWarning(null);
+    markAgentRunStarted(caseId);
     try {
       const data = await actionFn();
+      clearAgentRunStarted(caseId);
       if (data.blocked) {
         setOperationError(
           data.result_text || "Safety blocked this plan. Nothing was sent."
@@ -293,6 +338,9 @@ function CaseDetails() {
       await loadCaseData({ soft: true });
     } catch (err) {
       console.error(err);
+      if (!shouldKeepAgentRunMark(err)) {
+        clearAgentRunStarted(caseId);
+      }
       setOperationError(parseApiError(err));
     } finally {
       setOperating(false);
@@ -343,7 +391,8 @@ function CaseDetails() {
   if (error) return <ErrorState message={error} />;
   if (!recoveryCase) return <EmptyState message="Recovery case not found." />;
 
-  const pollingActive = shouldPollRecoveryCase(recoveryCase);
+  const pollingActive =
+    shouldPollRecoveryCase(recoveryCase) || agentBusy;
 
   return (
     <div className="page-enter space-y-6">
@@ -403,6 +452,8 @@ function CaseDetails() {
           </button>
         </div>
       </div>
+
+      <AgentRunningBanner visible={agentBusy} />
 
       {fromLive && (
         <div className="rounded-[18px] border border-pine/20 bg-pine-soft/40 px-5 py-4 sm:px-6">
@@ -559,7 +610,7 @@ function CaseDetails() {
           timeline={timeline}
           paymentDetails={paymentDetails}
           checkoutConfig={checkoutConfig}
-          operating={operating}
+          operating={agentBusy}
           onExecute={() =>
             runOperatorAction(() => executePendingRecoveryAction(caseId))
           }
@@ -595,7 +646,7 @@ function CaseDetails() {
           timeline={timeline}
           checkoutConfig={checkoutConfig}
           paymentDetails={paymentDetails}
-          operating={operating}
+          operating={agentBusy}
           operationMessage={operationMessage}
           operationWarning={operationWarning}
           operationError={operationError}

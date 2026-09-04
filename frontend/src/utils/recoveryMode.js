@@ -11,7 +11,7 @@ export const RECOVERY_MODES = [
     id: "AUTOMATIC",
     label: "Run agent on every case",
     detail:
-      "After saving, each eligible recovery case gets a Run Agent button. The agent runs only when you click it — never all cases at once.",
+      "After saving, each eligible case gets a Run Agent button. One click runs every action Safety and your limits allow on that case — not all cases at once.",
   },
 ];
 
@@ -50,6 +50,10 @@ export function isCaseEligibleForRunAgent(
     return false;
   }
   if (awaitingCustomerPayment) return false;
+  const approval = upper(item.approval_state);
+  if (approval === "AWAITING_APPROVAL") {
+    return false;
+  }
   const code = upper(item.next_step_code);
   if (
     code === "AWAITING_CUSTOMER" ||
@@ -62,8 +66,7 @@ export function isCaseEligibleForRunAgent(
   return true;
 }
 
-export function runAgentButtonLabel({ running = false, again = false } = {}) {
+export function runAgentButtonLabel({ running = false } = {}) {
   if (running) return "Running Agent...";
-  if (again) return "Run Agent Again";
   return "Run Agent";
 }

@@ -436,7 +436,7 @@ def main():
             )
         )
         report.check(
-            "Run Agent executes a Safety-allowed action for one case",
+            "Run Agent executes Safety-allowed actions for one case",
             executed_auto is not None
             and case_auto.status != CaseStatus.RECOVERED
             and not run_one.get("blocked"),

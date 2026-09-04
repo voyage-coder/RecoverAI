@@ -11,6 +11,7 @@ import RunAgentButton from "./RunAgentButton";
 import { toLabel } from "../utils/labels";
 import { isCaseEligibleForRunAgent } from "../utils/recoveryMode";
 import { policyBannerFromCase } from "../utils/policyCopy";
+import AgentRunningBanner from "./AgentRunningBanner";
 
 function upper(value) {
   return String(value || "").toUpperCase();
@@ -115,6 +116,7 @@ function RecoveryOperationsPanel({
 
   return (
     <div className="space-y-5">
+      <AgentRunningBanner visible={operating && agentMode} />
       <div className="rounded-xl border border-skyline/20 bg-skyline-soft/30 px-4 py-3">
         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-skyline">
           Who does what
@@ -123,7 +125,7 @@ function RecoveryOperationsPanel({
           <li>
             <span className="font-semibold text-ink">You:</span>{" "}
             {agentMode
-              ? "click Run Agent on one case at a time."
+              ? "click Run Agent once per case. The agent then runs every permitted action."
               : "run the recommended action."}
           </li>
           <li>
@@ -214,7 +216,6 @@ function RecoveryOperationsPanel({
         {showRunAgent && (
           <RunAgentButton
             running={operating}
-            again={Boolean(latestExecuted)}
             onClick={onRunAgent}
           />
         )}

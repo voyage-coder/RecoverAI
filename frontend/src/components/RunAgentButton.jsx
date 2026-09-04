@@ -3,7 +3,6 @@ import { runAgentButtonLabel } from "../utils/recoveryMode";
 
 function RunAgentButton({
   running = false,
-  again = false,
   onClick,
   className = "",
 }) {
@@ -23,7 +22,7 @@ function RunAgentButton({
       ) : (
         <Sparkles size={15} />
       )}
-      {runAgentButtonLabel({ running, again })}
+      {runAgentButtonLabel({ running })}
     </button>
   );
 }

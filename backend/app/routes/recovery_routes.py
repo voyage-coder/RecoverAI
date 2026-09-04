@@ -409,8 +409,9 @@ def execute_pending_recovery_action(
     response_model=ExecuteRecoveryActionResponse,
     summary="Run agent for one recovery case",
     description=(
-        "Runs AI analysis, selects one strategy, applies the Safety Engine, "
-        "and executes only that allowed action. Never iterates other cases."
+        "Runs this case only: analyze, then execute every Safety- and "
+        "policy-allowed action until the agent must stop. Never iterates "
+        "other cases."
     ),
 )
 def run_recovery_agent(

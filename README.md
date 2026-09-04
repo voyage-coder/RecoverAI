@@ -328,7 +328,7 @@ flowchart TD
   H -->|Allowed| J[Pending recovery action]
   J --> K{Settings}
   K -->|Manual| L[Merchant runs action]
-  K -->|Agent mode + Run Agent click| N[Agent executes one selected action if Safety allows]
+  K -->|Agent mode + Run Agent click| N[Agent executes every permitted action on that case]
   L --> O[Retry / send link / reminder]
   N --> O
   O --> P[Gemini drafts message around real link]
@@ -397,13 +397,13 @@ Settings → select Agent mode → save policy
 → Run Agent appears on eligible cases
 → user triggers agent for one case
 → AI analysis → strategy selection → Safety Engine
-→ one action executed → verified payment result → audit trail
+→ permitted actions executed → verified payment result → audit trail
 ```
 
 | Mode | What happens |
 | --- | --- |
 | **Manual** (default) | You click Execute. Timeline shows **Manual**. Saving policy does not run cases. |
-| **Run agent on every case** | Saving only stores the mode. Each eligible case shows **Run Agent**. One click = one case. Timeline shows **Agent**. Over cap / high-value / Safety block / escalated are skipped. |
+| **Run agent on every case** | Saving only stores the mode. Each eligible case shows **Run Agent**. One click = one case, every Safety- and policy-allowed action. Timeline shows **Agent**. Stops for customer payment, over cap / high-value, Safety block, or escalation. |
 
 Neither mode sets Recovered. Customer still pays; webhook still confirms.
 
@@ -553,7 +553,7 @@ Everything else we hit while shipping — still real, but not the core money-int
 
 **Problem:** Auto-run on large amounts is unsafe.
 
-**Fix:** Settings default **Manual**. **Run agent on every case** only after you save that mode — then click **Run Agent** on a single case. Safety must allow the action, amount under the agent cap (default **₹5,000**). High-value (default **₹10,000**) still needs you. The agent never marks Recovered.
+**Fix:** Settings default **Manual**. **Run agent on every case** only after you save that mode — then click **Run Agent** on a single case. The agent runs every Safety-allowed action under the agent cap (default **₹5,000**). High-value (default **₹10,000**) still needs you. The agent never marks Recovered.
 
 ### 8. CORS / Postgres on Render
 

@@ -11,10 +11,17 @@ import { formatINR } from "../utils/format";
 import { toLabel } from "../utils/labels";
 import OriginBadges from "../components/OriginBadges";
 import RunAgentButton from "../components/RunAgentButton";
+import AgentRunningBanner from "../components/AgentRunningBanner";
 import {
   isAgentRecoveryMode,
   isCaseEligibleForRunAgent,
 } from "../utils/recoveryMode";
+import {
+  markAgentRunStarted,
+  clearAgentRunStarted,
+  shouldKeepAgentRunMark,
+  isCaseRowBusy,
+} from "../utils/agentRunState";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -187,11 +194,17 @@ function OperationsCaseCard({
           <ArrowUpRight size={12} />
         </Link>
         {agentMode && isCaseEligibleForRunAgent(item) ? (
-          <RunAgentButton
-            className="px-3 py-1.5 text-xs"
-            running={executingId === item.id}
-            onClick={() => onRunAgent(item.id)}
-          />
+          <div className="space-y-2">
+            <AgentRunningBanner
+              compact
+              visible={isCaseRowBusy(item, executingId)}
+            />
+            <RunAgentButton
+              className="px-3 py-1.5 text-xs"
+              running={isCaseRowBusy(item, executingId)}
+              onClick={() => onRunAgent(item.id)}
+            />
+          </div>
         ) : (
           canExecute &&
           !isRecovered && (
@@ -293,8 +306,10 @@ function Operations() {
     if (executingId) return;
     setExecutingId(caseId);
     setActionError(null);
+    markAgentRunStarted(caseId);
     try {
       const result = await runRecoveryAgent(caseId);
+      clearAgentRunStarted(caseId);
       if (result?.blocked) {
         setActionError(result.result_text || "Safety blocked this plan.");
       } else if (result?.agent_skipped) {
@@ -303,6 +318,9 @@ function Operations() {
       await loadCases({ soft: true });
     } catch (err) {
       console.error(err);
+      if (!shouldKeepAgentRunMark(err)) {
+        clearAgentRunStarted(caseId);
+      }
       setActionError(parseApiError(err));
     } finally {
       setExecutingId(null);

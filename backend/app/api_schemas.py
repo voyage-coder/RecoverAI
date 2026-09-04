@@ -518,6 +518,7 @@ class ExecuteRecoveryActionResponse(BaseModel):
     result_text: Optional[str] = None
     blocked: bool = False
     agent_skipped: bool = False
+    executed_count: int = 0
 
 
 class CheckoutConfigResponse(BaseModel):
