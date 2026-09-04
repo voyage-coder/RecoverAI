@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw, Sparkles, FileDown, FileSpreadsheet } from "lucide-react";
 import StatusBadge from "../components/StatusBadge";
+import OriginBadges from "../components/OriginBadges";
 import RecoveryTimeline from "../components/RecoveryTimeline";
 import CaseRecoveryProgress from "../components/CaseRecoveryProgress";
 import RecoveryOutcomeBanner from "../components/RecoveryOutcomeBanner";
@@ -142,12 +143,20 @@ function CaseDetails() {
       setError(null);
 
       try {
-        const [caseData, timelineData] = await Promise.all([
-          getRecoveryCase(caseId),
-          getCaseTimeline(caseId),
-        ]);
+        const caseData = await getRecoveryCase(caseId);
         setRecoveryCase(caseData);
-        setTimeline(timelineData);
+
+        try {
+          const timelineData = await getCaseTimeline(caseId);
+          setTimeline(timelineData);
+        } catch (timelineErr) {
+          console.error(timelineErr);
+          setTimeline(null);
+          if (timelineErr?.response?.status !== 404) {
+            throw timelineErr;
+          }
+        }
+
         setLastUpdated(new Date());
 
         try {
@@ -181,7 +190,15 @@ function CaseDetails() {
         }
       } catch (err) {
         console.error(err);
-        setError("Unable to connect to RecoverAI API.");
+        if (err?.response?.status === 404) {
+          setRecoveryCase(null);
+          setTimeline(null);
+          setError(
+            "This recovery case was not found. It may have been removed by Demo Reset. Go back to cases and open a current one."
+          );
+        } else {
+          setError(parseApiError(err));
+        }
       } finally {
         setLoading(false);
         setRefreshing(false);

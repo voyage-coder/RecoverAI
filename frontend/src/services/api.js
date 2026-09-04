@@ -214,6 +214,17 @@ export function parseApiError(error) {
   const detail = error.response.data?.detail;
   const status = error.response.status;
 
+  if (status === 404) {
+    const text = typeof detail === "string" ? detail : "";
+    if (/payment/i.test(text)) {
+      return "Payment details are not available for this case.";
+    }
+    return (
+      "This recovery case was not found. It may have been removed by Demo Reset. " +
+      "Go back to cases and open a current one."
+    );
+  }
+
   if (status === 409) {
     return (
       "This case is already running. Wait, then refresh. " +
