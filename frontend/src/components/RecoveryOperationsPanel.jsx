@@ -9,7 +9,7 @@ import StatusBadge from "./StatusBadge";
 import RazorpayTestCheckout from "./RazorpayTestCheckout";
 import RunAgentButton from "./RunAgentButton";
 import { toLabel } from "../utils/labels";
-import { isCaseEligibleForRunAgent } from "../utils/recoveryMode";
+import { pendingStepCta } from "../utils/recoveryMode";
 import { policyBannerFromCase } from "../utils/policyCopy";
 import AgentRunningBanner from "./AgentRunningBanner";
 
@@ -59,17 +59,18 @@ function RecoveryOperationsPanel({
           .includes("AWAITING")
       ));
 
+  const stepCta = pendingStepCta({
+    agentMode,
+    pendingAction,
+    recoveryCase,
+    awaitingCustomerPayment: awaitingWebhook,
+  });
+
   const availableOperations = useMemo(() => {
     const ops = [];
-    const waitingOnMerchant = Boolean(
-      pendingAction &&
-        !isTerminal &&
-        ["AWAITING_APPROVAL", "READY_TO_EXECUTE"].includes(
-          upper(recoveryCase?.approval_state)
-        )
-    );
+    const waitingOnMerchant = stepCta.showMerchant;
 
-    if (pendingAction && !isTerminal && (!agentMode || waitingOnMerchant)) {
+    if (pendingAction && !isTerminal && waitingOnMerchant) {
       ops.push({
         key: "execute",
         label: waitingOnMerchant
@@ -111,14 +112,10 @@ function RecoveryOperationsPanel({
     onExecutePending,
     onContinueRecovery,
     agentMode,
-    recoveryCase?.approval_state,
+    stepCta.showMerchant,
   ]);
 
-  const showRunAgent =
-    agentMode &&
-    isCaseEligibleForRunAgent(recoveryCase, {
-      awaitingCustomerPayment: awaitingWebhook,
-    });
+  const showRunAgent = stepCta.showAgent;
   const policyBanner = policyBannerFromCase(recoveryCase);
 
   return (

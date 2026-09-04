@@ -35,7 +35,17 @@ export function friendlyPolicyMessage(reason) {
   return null;
 }
 
-export function policyBannerFromCase(recoveryCase) {
+export function policyBannerFromCase(recoveryCase, { pendingType } = {}) {
+  const type = String(
+    pendingType || recoveryCase?.recommended_action || ""
+  ).toUpperCase();
+  const approval = String(recoveryCase?.approval_state || "").toUpperCase();
+  if (type === "SEND_PAYMENT_LINK" && approval === "AUTO_ELIGIBLE") {
+    return "Click Run Agent to send this payment link.";
+  }
+  if (type === "SEND_PAYMENT_LINK") {
+    return "Click Send payment link to send it. You do not need to switch to Manual.";
+  }
   return friendlyPolicyMessage(
     recoveryCase?.policy_reason || recoveryCase?.next_step_detail
   );

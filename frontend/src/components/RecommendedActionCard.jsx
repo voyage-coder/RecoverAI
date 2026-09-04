@@ -5,7 +5,7 @@ import RunAgentButton from "./RunAgentButton";
 import { formatINR } from "../utils/format";
 import { toLabel } from "../utils/labels";
 import { resolveActionStateLabel } from "../utils/customerJourney";
-import { isCaseEligibleForRunAgent, needsMerchantExecute } from "../utils/recoveryMode";
+import { pendingStepCta } from "../utils/recoveryMode";
 import { policyBannerFromCase } from "../utils/policyCopy";
 
 function upper(value) {
@@ -50,16 +50,16 @@ function RecommendedActionCard({
           .includes("AWAITING")
       ));
 
-  const showMerchantExecute =
-    Boolean(pendingAction) &&
-    !isTerminal &&
-    (!agentMode ||
-      needsMerchantExecute(recoveryCase, { awaitingCustomerPayment }));
-  const showRunAgent =
-    agentMode &&
-    !showMerchantExecute &&
-    isCaseEligibleForRunAgent(recoveryCase, { awaitingCustomerPayment });
-  const policyBanner = policyBannerFromCase(recoveryCase);
+  const { showMerchant: showMerchantExecute, showAgent: showRunAgent } =
+    pendingStepCta({
+      agentMode,
+      pendingAction,
+      recoveryCase,
+      awaitingCustomerPayment,
+    });
+  const policyBanner = policyBannerFromCase(recoveryCase, {
+    pendingType: pendingAction?.action_type,
+  });
 
   const strategy =
     pendingAction?.action_type ||
@@ -200,73 +200,75 @@ function RecommendedActionCard({
         {toLabel(strategy)}
       </h4>
       <p className="mt-2 text-sm text-ink-mute">
-        {showMerchantExecute && agentMode
-          ? "This step is waiting for you. After you execute it, the agent continues any steps it is allowed to run, until it needs you again, the customer pays, or nothing is left."
+        {showMerchantExecute
+          ? "Click Send payment link (or Execute) to send this step. After that, the agent continues any steps it is allowed to run."
           : agentMode
-            ? "If the agent can run the next step, use Run Agent (or it continues after you execute). If it leaves a step for you, Execute appears instead."
+            ? "Click Run Agent to send this payment link and any other allowed steps."
             : "Confirm to run this action. Recovery is confirmed only after the customer pays."}
       </p>
 
-      {agentMode && !showMerchantExecute ? (
+      {showMerchantExecute ? (
+        !confirming ? (
+          <button
+            type="button"
+            disabled={operating}
+            onClick={() => setConfirming(true)}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-soft disabled:opacity-60"
+          >
+            <Play size={15} />
+            {upper(strategy) === "SEND_PAYMENT_LINK"
+              ? "Send payment link"
+              : "Run recommended action"}
+          </button>
+        ) : (
+          <div className="mt-5 rounded-xl border border-ink/10 bg-white p-4">
+            <p className="text-sm font-semibold text-ink">
+              You&apos;re about to execute:
+            </p>
+            <p className="mt-1 text-sm text-ink-mute">{toLabel(strategy)}</p>
+            <p className="mt-3 text-sm text-ink-mute">
+              Amount at risk:{" "}
+              <span className="font-mono text-ink">
+                {formatINR(recoveryCase?.amount_at_risk)}
+              </span>
+            </p>
+            <p className="mt-3 text-xs text-ink-faint">
+              This is recorded in the audit trail and must pass safety rules.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={operating}
+                onClick={() => setConfirming(false)}
+                className="rounded-xl border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={operating}
+                onClick={async () => {
+                  await onExecute?.();
+                  setConfirming(false);
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-pine px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              >
+                {operating ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Play size={15} />
+                )}
+                Execute action
+              </button>
+            </div>
+          </div>
+        )
+      ) : (
         <>
           {agentButton}
-          {policyNote}
         </>
-      ) : !confirming ? (
-        <button
-          type="button"
-          disabled={operating}
-          onClick={() => setConfirming(true)}
-          className="mt-5 inline-flex items-center gap-2 rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-soft disabled:opacity-60"
-        >
-          <Play size={15} />
-          {upper(strategy) === "SEND_PAYMENT_LINK"
-            ? "Send payment link"
-            : "Run recommended action"}
-        </button>
-      ) : (
-        <div className="mt-5 rounded-xl border border-ink/10 bg-white p-4">
-          <p className="text-sm font-semibold text-ink">
-            You&apos;re about to execute:
-          </p>
-          <p className="mt-1 text-sm text-ink-mute">{toLabel(strategy)}</p>
-          <p className="mt-3 text-sm text-ink-mute">
-            Amount at risk:{" "}
-            <span className="font-mono text-ink">
-              {formatINR(recoveryCase?.amount_at_risk)}
-            </span>
-          </p>
-          <p className="mt-3 text-xs text-ink-faint">
-            This is recorded in the audit trail and must pass safety rules.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={operating}
-              onClick={() => setConfirming(false)}
-              className="rounded-xl border border-ink/10 bg-white px-4 py-2 text-sm font-semibold text-ink"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={operating}
-              onClick={async () => {
-                await onExecute?.();
-                setConfirming(false);
-              }}
-              className="inline-flex items-center gap-2 rounded-xl bg-pine px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-            >
-              {operating ? (
-                <Loader2 size={15} className="animate-spin" />
-              ) : (
-                <Play size={15} />
-              )}
-              Execute action
-            </button>
-          </div>
-        </div>
       )}
+      {policyNote}
     </div>
   );
 }
