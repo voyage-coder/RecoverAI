@@ -440,6 +440,9 @@ def execute_action(
     ]:
         raise ValueError("action_already_terminal")
 
+    if action.status == ActionStatus.PROCESSING:
+        raise ValueError("action_in_progress")
+
     # --------------------------------------------------------
     # Mark processing
     # --------------------------------------------------------

@@ -24,7 +24,9 @@ import {
   getCheckoutConfig,
   executePendingRecoveryAction,
   continueRecovery,
+  runRecoveryAgent,
   createCustomerRecoveryLink,
+  getMerchantSettings,
   parseApiError,
 } from "../services/api";
 import { formatINR, formatDateTime, extractPaymentLink } from "../utils/format";
@@ -35,6 +37,8 @@ import {
   downloadAuditExcel,
   downloadAuditPdf,
 } from "../utils/auditExport";
+import { isAgentRecoveryMode } from "../utils/recoveryMode";
+import { policyBannerFromCase, friendlyPolicyMessage } from "../utils/policyCopy";
 
 const POLL_INTERVAL_MS = 8000;
 const NA = "Not available";
@@ -113,9 +117,11 @@ function CaseDetails() {
   const [checkoutConfig, setCheckoutConfig] = useState(null);
   const [operating, setOperating] = useState(false);
   const [operationMessage, setOperationMessage] = useState(null);
+  const [operationWarning, setOperationWarning] = useState(null);
   const [operationError, setOperationError] = useState(null);
   const [postCheckoutPolling, setPostCheckoutPolling] = useState(false);
   const [openingPayLink, setOpeningPayLink] = useState(false);
+  const [agentMode, setAgentMode] = useState(false);
 
   const loadCaseData = useCallback(
     async ({ soft = false } = {}) => {
@@ -178,6 +184,20 @@ function CaseDetails() {
   useEffect(() => {
     loadCaseData();
   }, [loadCaseData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMerchantSettings()
+      .then((settings) => {
+        if (!cancelled) {
+          setAgentMode(isAgentRecoveryMode(settings?.recovery_mode));
+        }
+      })
+      .catch((err) => console.error(err));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!shouldPollRecoveryCase(recoveryCase) && !postCheckoutPolling) {
@@ -256,11 +276,16 @@ function CaseDetails() {
     setOperating(true);
     setOperationError(null);
     setOperationMessage(null);
+    setOperationWarning(null);
     try {
       const data = await actionFn();
       if (data.blocked) {
         setOperationError(
-          data.result_text || "Action blocked by Safety Engine."
+          data.result_text || "Safety blocked this plan. Nothing was sent."
+        );
+      } else if (data.agent_skipped) {
+        setOperationWarning(
+          friendlyPolicyMessage(data.message) || data.message
         );
       } else {
         setOperationMessage(data.message || "Operation completed.");
@@ -347,7 +372,7 @@ function CaseDetails() {
           <button
             type="button"
             onClick={() =>
-              downloadAuditExcel({ recoveryCase, timeline })
+              downloadAuditExcel({ recoveryCase, timeline, decision })
             }
             className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2 text-sm font-semibold text-ink transition hover:border-pine/30 hover:text-pine"
           >
@@ -356,7 +381,9 @@ function CaseDetails() {
           </button>
           <button
             type="button"
-            onClick={() => downloadAuditPdf({ recoveryCase, timeline })}
+            onClick={() =>
+              downloadAuditPdf({ recoveryCase, timeline, decision })
+            }
             className="inline-flex items-center gap-2 rounded-xl border border-ink/10 bg-white px-3.5 py-2 text-sm font-semibold text-ink transition hover:border-pine/30 hover:text-pine"
           >
             <FileDown size={15} />
@@ -520,6 +547,7 @@ function CaseDetails() {
       <section className="panel p-5 sm:p-6">
         <AIRecoveryDecision
           decision={decision}
+          timeline={timeline}
           loading={false}
           error={decisionError}
         />
@@ -534,6 +562,10 @@ function CaseDetails() {
           operating={operating}
           onExecute={() =>
             runOperatorAction(() => executePendingRecoveryAction(caseId))
+          }
+          agentMode={agentMode}
+          onRunAgent={() =>
+            runOperatorAction(() => runRecoveryAgent(caseId))
           }
         />
       </section>
@@ -565,12 +597,17 @@ function CaseDetails() {
           paymentDetails={paymentDetails}
           operating={operating}
           operationMessage={operationMessage}
+          operationWarning={operationWarning}
           operationError={operationError}
           onExecutePending={() =>
             runOperatorAction(() => executePendingRecoveryAction(caseId))
           }
           onContinueRecovery={() =>
             runOperatorAction(() => continueRecovery(caseId))
+          }
+          agentMode={agentMode}
+          onRunAgent={() =>
+            runOperatorAction(() => runRecoveryAgent(caseId))
           }
           onCheckoutComplete={(msg) => {
             setOperationMessage(msg);

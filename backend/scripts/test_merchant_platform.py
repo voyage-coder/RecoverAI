@@ -39,6 +39,7 @@ from app.services.merchant_settings_service import (
 )
 from app.services.razorpay_webhook_service import sign_webhook_body
 from app.services.recovery_mode_service import apply_merchant_recovery_mode
+from app.services.recovery_operations_service import run_agent_for_case
 
 
 TEST_WEBHOOK_SECRET = "recoverai_phase14_webhook_secret"
@@ -402,6 +403,30 @@ def main():
         )
         db.commit()
         case_auto = db.get(RecoveryCase, auto["case_id"])
+        pending_auto = db.scalar(
+            select(RecoveryAction).where(
+                RecoveryAction.case_id == case_auto.id,
+                RecoveryAction.status == ActionStatus.PENDING,
+            )
+        )
+        executed_on_ingest = db.scalar(
+            select(RecoveryAction).where(
+                RecoveryAction.case_id == case_auto.id,
+                RecoveryAction.status.in_(
+                    [ActionStatus.EXECUTED, ActionStatus.FAILED]
+                ),
+            )
+        )
+        report.check(
+            "Agent mode does not execute on ingest",
+            pending_auto is not None
+            and executed_on_ingest is None
+            and case_auto.status != CaseStatus.RECOVERED,
+            f"pending={pending_auto.status.value if pending_auto else None}",
+        )
+        run_one = run_agent_for_case(db, case_auto.id)
+        db.commit()
+        db.refresh(case_auto)
         executed_auto = db.scalar(
             select(RecoveryAction).where(
                 RecoveryAction.case_id == case_auto.id,
@@ -411,9 +436,10 @@ def main():
             )
         )
         report.check(
-            "Automatic mode executes a Safety-allowed action",
+            "Run Agent executes a Safety-allowed action for one case",
             executed_auto is not None
-            and case_auto.status != CaseStatus.RECOVERED,
+            and case_auto.status != CaseStatus.RECOVERED
+            and not run_one.get("blocked"),
             f"action={executed_auto.status.value if executed_auto else None} "
             f"case={case_auto.status.value}",
         )

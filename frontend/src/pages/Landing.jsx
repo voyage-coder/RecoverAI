@@ -41,7 +41,7 @@ const CAPABILITIES = [
     to: "/settings",
     title: "Choose how recovery runs",
     blurb:
-      "Manual, or run the agent on every allowed case — with a rupee cap so high-value stays with you.",
+      "Manual, or Run Agent per eligible case — with a rupee cap so high-value stays with you.",
     icon: SlidersHorizontal,
     tone: "bg-sand-soft text-sand",
   },
@@ -117,9 +117,11 @@ function Landing() {
               Bring failed revenue back — safely, and only when it is real.
             </h1>
             <p className="mt-5 max-w-lg text-base leading-relaxed text-ink-mute">
-              RecoverAI finds failed Razorpay payments, ranks the next recovery
-              move with ML, lets you choose Manual or Run agent on every case
-              in Settings, and counts rupees only after a verified capture.
+              An AI-powered revenue recovery agent that analyzes failed
+              payments, selects recovery strategies, operates within
+              deterministic safety policies, and executes recovery actions with
+              complete auditability. Rupees count only after a verified Razorpay
+              capture.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
@@ -251,10 +253,11 @@ function Landing() {
         >
           <div className="flex flex-col justify-center">
             <p className="eyebrow">Settings</p>
-            <h2 className="page-title">Pick Manual or run the agent</h2>
+            <h2 className="page-title">Pick Manual or run the agent per case</h2>
             <p className="mt-3 text-sm leading-relaxed text-ink-mute">
-              Two modes. Safety Engine still blocks unsafe actions. The agent
-              never marks recovered — only Razorpay can.
+              Two modes. Safety Engine still blocks unsafe actions. Saving
+              agent mode does not process cases. You click Run Agent on one
+              case. Recovered only after Razorpay verifies capture.
             </p>
             <ul className="mt-6 space-y-3 text-sm">
               <li className="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-panel">
@@ -269,9 +272,9 @@ function Landing() {
                   Run agent on every case
                 </span>
                 <span className="mt-0.5 block text-ink-mute">
-                  After save, the agent processes every open case still allowed
-                  (under cap, not escalated, Safety allows). Tagged Agent.
-                  Default cap ₹5,000. High-value (₹10,000) still needs you.
+                  After save, eligible cases show a Run Agent button. The agent
+                  runs only when you click it. Tagged Agent. Default cap ₹5,000.
+                  High-value (₹10,000) still needs you.
                 </span>
               </li>
             </ul>
@@ -444,7 +447,7 @@ function Landing() {
               {
                 step: "03",
                 title: "Gate",
-                body: "Safety Engine + Manual or Run agent on every case.",
+                body: "Safety Engine + Manual or per-case Run Agent.",
                 icon: Lock,
                 tone: "bg-ink text-white",
               },
@@ -545,7 +548,7 @@ function Landing() {
                     />
                   </span>
                   <span className="mt-1 block text-sm leading-relaxed text-ink-mute">
-                    Choose Manual or Run agent on every case. Set the rupee cap.
+                    Choose Manual or Run Agent per case. Set the rupee cap.
                   </span>
                 </span>
               </Link>

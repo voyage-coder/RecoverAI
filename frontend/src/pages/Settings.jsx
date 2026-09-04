@@ -75,10 +75,9 @@ function Settings() {
           Math.round(Number(form.high_value_approval_threshold) * 100),
       });
       setSettings(data);
-      const run = data.automatic_run;
-      if (run?.queued) {
+      if (mode === "AUTOMATIC") {
         setMessage(
-          "Saved. The agent is running on every allowed open case in the background. Refresh Recovery Cases in a few seconds."
+          "Saved. Eligible cases now show Run Agent. Nothing ran automatically — trigger one case at a time."
         );
       } else {
         setMessage("Recovery policy saved.");
@@ -103,9 +102,9 @@ function Settings() {
           <span className="font-semibold text-ink">
             Run agent on every case
           </span>{" "}
-          — after save, the agent processes every open case Safety and your
-          rupee cap still allow. Neither mode marks Recovered; only a Razorpay
-          webhook does. Keys are on{" "}
+          — after save, each eligible case gets a Run Agent button. The agent
+          runs only when you click it. Neither mode marks Recovered; only a
+          Razorpay webhook does. Keys are on{" "}
           <Link to="/integrations" className="font-semibold text-pine">
             Connect payments
           </Link>
@@ -152,15 +151,24 @@ function Settings() {
               Agent-run actions show as{" "}
               <span className="font-semibold">Agent</span> on the case.
               Execute that you click shows as{" "}
-              <span className="font-semibold">Manual</span>. Over the rupee cap
-              or high-value still waits for you.
+              <span className="font-semibold">Manual</span>. Saving this policy
+              does not process cases.
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <details className="rounded-xl border border-ink/10 bg-mist-soft/40 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">
+              Advanced limits (optional)
+            </summary>
+            <p className="mt-2 text-xs text-ink-mute">
+              Not required for the demo. Leave the defaults. These are merchant
+              policy limits, separate from the Safety Engine. Safety still
+              blocks unsafe strategies even if an amount is under the cap.
+            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                Agent amount cap (₹)
+                Agent rupee limit
               </label>
               <input
                 type="number"
@@ -174,10 +182,14 @@ function Settings() {
                   }))
                 }
               />
+              <p className="mt-1 text-[11px] text-ink-faint">
+                If the failed payment is more than this, the agent will not
+                send anything. Switch to Manual and click Execute.
+              </p>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                High-value needs you (₹)
+                Large payment — you run it (₹)
               </label>
               <input
                 type="number"
@@ -191,10 +203,14 @@ function Settings() {
                   }))
                 }
               />
+              <p className="mt-1 text-[11px] text-ink-faint">
+                At this amount or more, the agent will not send anything. You
+                run it in Manual.
+              </p>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                Max retry attempts
+                Max payment retries
               </label>
               <input
                 type="number"
@@ -208,6 +224,10 @@ function Settings() {
                   }))
                 }
               />
+              <p className="mt-1 text-[11px] text-ink-faint">
+                Only counts charging the original card/UPI again. Not a cap on
+                all strategies. After retries, a payment link can still run.
+              </p>
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-ink-faint">
@@ -225,16 +245,19 @@ function Settings() {
                   }))
                 }
               />
+              <p className="mt-1 text-[11px] text-ink-faint">
+                How long a customer pay link stays valid.
+              </p>
             </div>
-          </div>
-
-          {settings && (
-            <p className="text-xs text-ink-faint">
-              Agent cap: {formatINR(settings.max_automatic_recovery_amount)} ·
-              High-value from{" "}
-              {formatINR(settings.high_value_approval_threshold)}
-            </p>
-          )}
+            </div>
+            {settings && (
+              <p className="mt-3 text-xs text-ink-faint">
+                Agent cap: {formatINR(settings.max_automatic_recovery_amount)} ·
+                High-value from{" "}
+                {formatINR(settings.high_value_approval_threshold)}
+              </p>
+            )}
+          </details>
 
           {error && <p className="text-sm font-medium text-clay">{error}</p>}
           {message && <p className="text-sm font-medium text-pine">{message}</p>}

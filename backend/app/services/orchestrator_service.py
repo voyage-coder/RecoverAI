@@ -402,7 +402,7 @@ def process_payment(
         apply_merchant_recovery_mode,
     )
 
-    apply_merchant_recovery_mode(db, case)
+    apply_merchant_recovery_mode(db, case, auto_execute=False)
     db.flush()
 
     return case

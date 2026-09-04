@@ -1,7 +1,8 @@
 ﻿from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
+import json
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ============================================================
@@ -172,6 +173,22 @@ class AuditLogResponse(BaseModel):
     details: str
 
     timestamp: datetime
+
+    @field_validator("details", mode="before")
+    @classmethod
+    def coerce_audit_details(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, (dict, list)):
+            note = None
+            if isinstance(value, dict):
+                note = value.get("note") or value.get("message")
+            if isinstance(note, str) and note.strip():
+                return note
+            return json.dumps(value)
+        return str(value)
 
 
 # ============================================================
@@ -500,6 +517,7 @@ class ExecuteRecoveryActionResponse(BaseModel):
     action_status: Optional[str] = None
     result_text: Optional[str] = None
     blocked: bool = False
+    agent_skipped: bool = False
 
 
 class CheckoutConfigResponse(BaseModel):

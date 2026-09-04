@@ -1,5 +1,6 @@
 import { formatDateTime, formatINR } from "./format";
 import { toLabel } from "./labels";
+import { planSafetyVerdict } from "./safetyVerdict";
 
 function csvCell(value) {
   const text = value == null ? "" : String(value);
@@ -58,13 +59,19 @@ function sortByTime(rows) {
   });
 }
 
-export function buildAuditDocument({ recoveryCase, timeline }) {
+export function buildAuditDocument({ recoveryCase, timeline, decision }) {
   const caseNumber = recoveryCase?.case_number || "case";
   const actions = timeline?.actions || [];
   const communications = timeline?.communications || [];
   const strategies = timeline?.strategies || [];
   const result = timeline?.result;
   const status = toLabel(recoveryCase?.status);
+  const safety = planSafetyVerdict({ timeline, decision });
+  const selectedPlan =
+    toLabel(
+      strategies.find((item) => item.is_selected)?.strategy_type ||
+        recoveryCase?.selected_strategy
+    ) || "—";
 
   const recovered =
     String(recoveryCase?.status || "").toUpperCase() === "RECOVERED";
@@ -72,6 +79,9 @@ export function buildAuditDocument({ recoveryCase, timeline }) {
   const summary = [
     ["Case", caseNumber],
     ["Status now", status],
+    ["Predicted plan", selectedPlan],
+    ["Safety check", safety.label],
+    ["Safety detail", safety.detail],
     [
       "Money recovered in RecoverAI?",
       recovered
@@ -99,6 +109,22 @@ export function buildAuditDocument({ recoveryCase, timeline }) {
     what: "Payment failed",
     who: "",
     result: recoveryCase?.failure_reason || toLabel(recoveryCase?.failure_category),
+  });
+
+  if (selectedPlan && selectedPlan !== "—") {
+    timelineRows.push({
+      time: recoveryCase?.created_at,
+      what: "Predicted plan",
+      who: "Agent",
+      result: selectedPlan,
+    });
+  }
+
+  timelineRows.push({
+    time: safety.at || recoveryCase?.created_at,
+    what: "Safety check",
+    who: "Safety Engine",
+    result: `${safety.label}${safety.detail ? ` — ${safety.detail}` : ""}`,
   });
 
   actions.forEach((item) => {
@@ -135,8 +161,8 @@ export function buildAuditDocument({ recoveryCase, timeline }) {
 }
 
 /** Flat rows for Excel — same story as the PDF, time order. */
-export function buildAuditRows({ recoveryCase, timeline }) {
-  const doc = buildAuditDocument({ recoveryCase, timeline });
+export function buildAuditRows({ recoveryCase, timeline, decision }) {
+  const doc = buildAuditDocument({ recoveryCase, timeline, decision });
   const rows = [];
 
   doc.summary.forEach((pair) => {
@@ -183,8 +209,8 @@ function triggerDownload(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-export function downloadAuditExcel({ recoveryCase, timeline }) {
-  const { caseNumber, doc } = buildAuditRows({ recoveryCase, timeline });
+export function downloadAuditExcel({ recoveryCase, timeline, decision }) {
+  const { caseNumber, doc } = buildAuditRows({ recoveryCase, timeline, decision });
   const blocks = [];
 
   blocks.push("RecoverAI case audit");
@@ -199,7 +225,7 @@ export function downloadAuditExcel({ recoveryCase, timeline }) {
   blocks.push("How to read this file");
   blocks.push(
     csvCell(
-      "Agent (automatic) = RecoverAI ran the action after you chose Run agent on every case. You (manual) = you clicked Execute. Ran successfully means the action was sent — it does not mean money is recovered. Recovered only after a verified Razorpay payment.captured webhook."
+      "Agent = RecoverAI ran the action after you clicked Run Agent on that case. You (manual) = you clicked Execute. Safety check Passed means the plan was allowed. Did not pass means it was blocked and not executed. Ran successfully means the action was sent — it does not mean money is recovered. Recovered only after a verified Razorpay payment.captured webhook."
     )
   );
   blocks.push("");
@@ -307,8 +333,8 @@ function buildPdf(pages) {
   return pdf;
 }
 
-export function downloadAuditPdf({ recoveryCase, timeline }) {
-  const doc = buildAuditDocument({ recoveryCase, timeline });
+export function downloadAuditPdf({ recoveryCase, timeline, decision }) {
+  const doc = buildAuditDocument({ recoveryCase, timeline, decision });
   const pageW = 595;
   const pageH = 842;
   const margin = 40;
@@ -394,10 +420,10 @@ export function downloadAuditPdf({ recoveryCase, timeline }) {
     "This file is for merchants and reviewers. It is not a bank statement."
   );
   paragraph(
-    "Agent (automatic) = RecoverAI ran the action after you chose Run agent on every case. You (manual) = you clicked Execute on the desk. Older rows may have a blank Who column if they ran before this labelling existed."
+    "Agent = RecoverAI ran the action after you clicked Run Agent on that case. You (manual) = you clicked Execute on the desk. Older rows may have a blank Who column if they ran before this labelling existed."
   );
   paragraph(
-    "Ran successfully means RecoverAI sent the retry, link, or message. It does not mean the customer paid. Money is Recovered only after Razorpay sends a verified payment.captured webhook."
+    "Safety check Passed means the Safety Engine allowed the selected plan. Did not pass means the plan was blocked and not executed. Ran successfully means RecoverAI sent the retry, link, or message. It does not mean the customer paid. Money is Recovered only after Razorpay sends a verified payment.captured webhook."
   );
   y -= 4;
 

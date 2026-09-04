@@ -1,15 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Search, SlidersHorizontal } from "lucide-react";
 import CaseTable from "../components/CaseTable";
 import LoadingState, { ErrorState } from "../components/LoadingState";
-import { getRecoveryCases } from "../services/api";
+import {
+  getRecoveryCases,
+  getMerchantSettings,
+  runRecoveryAgent,
+  parseApiError,
+} from "../services/api";
 import {
   CASE_STATUSES,
   FAILURE_CATEGORIES,
   RISK_LEVELS,
   toLabel,
 } from "../utils/labels";
+import { isAgentRecoveryMode } from "../utils/recoveryMode";
 
 function RecoveryCases() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,22 +30,29 @@ function RecoveryCases() {
   );
   const [risk, setRisk] = useState(searchParams.get("risk") || "ALL");
   const [sortBy, setSortBy] = useState(searchParams.get("sort") || "newest");
+  const [agentMode, setAgentMode] = useState(false);
+  const [executingId, setExecutingId] = useState(null);
+  const [actionError, setActionError] = useState(null);
+
+  const loadCases = useCallback(async () => {
+    try {
+      const [data, settings] = await Promise.all([
+        getRecoveryCases(),
+        getMerchantSettings().catch(() => null),
+      ]);
+      setCases(data || []);
+      setAgentMode(isAgentRecoveryMode(settings?.recovery_mode));
+    } catch (err) {
+      console.error(err);
+      setError("Unable to connect to RecoverAI API.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadCases = async () => {
-      try {
-        const data = await getRecoveryCases();
-        setCases(data || []);
-      } catch (err) {
-        console.error(err);
-        setError("Unable to connect to RecoverAI API.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadCases();
-  }, []);
+  }, [loadCases]);
 
   useEffect(() => {
     const urlQuery = searchParams.get("q") || "";
@@ -115,6 +128,26 @@ function RecoveryCases() {
 
     return result;
   }, [cases, search, status, category, risk, sortBy]);
+
+  const handleRunAgent = async (caseId) => {
+    if (executingId) return;
+    setExecutingId(caseId);
+    setActionError(null);
+    try {
+      const result = await runRecoveryAgent(caseId);
+      if (result?.blocked) {
+        setActionError(result.result_text || "Safety blocked this plan.");
+      } else if (result?.agent_skipped) {
+        setActionError(result.message);
+      }
+      await loadCases();
+    } catch (err) {
+      console.error(err);
+      setActionError(parseApiError(err));
+    } finally {
+      setExecutingId(null);
+    }
+  };
 
   if (loading) return <LoadingState message="Loading recovery cases..." />;
   if (error) return <ErrorState message={error} />;
@@ -210,8 +243,19 @@ function RecoveryCases() {
         </div>
       </div>
 
+      {actionError && (
+        <p className="rounded-xl border border-clay/20 bg-clay-soft/40 px-4 py-3 text-sm text-clay">
+          {actionError}
+        </p>
+      )}
+
       <div className="panel p-3 sm:p-4">
-        <CaseTable cases={filteredCases} />
+        <CaseTable
+          cases={filteredCases}
+          agentMode={agentMode}
+          executingId={executingId}
+          onRunAgent={handleRunAgent}
+        />
       </div>
     </div>
   );

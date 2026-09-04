@@ -11,7 +11,7 @@ export const RECOVERY_MODES = [
     id: "AUTOMATIC",
     label: "Run agent on every case",
     detail:
-      "After you save, the agent runs every open case that Safety and your rupee cap still allow. Tagged Agent on the timeline.",
+      "After saving, each eligible recovery case gets a Run Agent button. The agent runs only when you click it — never all cases at once.",
   },
 ];
 
@@ -26,4 +26,44 @@ export function normalizeRecoveryMode(mode) {
   return String(mode || "MANUAL").toUpperCase() === "AUTOMATIC"
     ? "AUTOMATIC"
     : "MANUAL";
+}
+
+export function isAgentRecoveryMode(mode) {
+  return normalizeRecoveryMode(mode) === "AUTOMATIC";
+}
+
+function upper(value) {
+  return String(value || "").toUpperCase();
+}
+
+/**
+ * Show Run Agent only in agent mode for cases that still need recovery.
+ * Hidden for RECOVERED, CLOSED, ESCALATED, and awaiting customer payment.
+ */
+export function isCaseEligibleForRunAgent(
+  item,
+  { awaitingCustomerPayment = false } = {}
+) {
+  if (!item) return false;
+  const status = upper(item.status);
+  if (status === "RECOVERED" || status === "CLOSED" || status === "ESCALATED") {
+    return false;
+  }
+  if (awaitingCustomerPayment) return false;
+  const code = upper(item.next_step_code);
+  if (
+    code === "AWAITING_CUSTOMER" ||
+    code === "CONFIRMED_RECOVERY" ||
+    code === "RECOVERY_STOPPED" ||
+    code === "ESCALATED"
+  ) {
+    return false;
+  }
+  return true;
+}
+
+export function runAgentButtonLabel({ running = false, again = false } = {}) {
+  if (running) return "Running Agent...";
+  if (again) return "Run Agent Again";
+  return "Run Agent";
 }

@@ -34,6 +34,7 @@ from app.services.payment_details_service import (
 from app.services.recovery_operations_service import (
     execute_pending_action_for_case,
     continue_recovery_for_case,
+    run_agent_for_case,
     get_checkout_config_for_case,
 )
 from app.services.customer_recovery_service import (
@@ -387,6 +388,72 @@ def execute_pending_recovery_action(
                     "Merchant approval is required before this action "
                     "can run. Use Approve & execute in Operations."
                 ),
+            ) from exc
+        if code == "action_in_progress":
+            raise HTTPException(
+                status_code=409,
+                detail="A recovery action is already running for this case.",
+            ) from exc
+        raise HTTPException(status_code=400, detail=code) from exc
+    except Exception:
+        db.rollback()
+        raise
+
+
+# ============================================================
+# AGENT: RUN FOR ONE CASE
+# ============================================================
+
+@router.post(
+    "/cases/{case_id}/run-agent",
+    response_model=ExecuteRecoveryActionResponse,
+    summary="Run agent for one recovery case",
+    description=(
+        "Runs AI analysis, selects one strategy, applies the Safety Engine, "
+        "and executes only that allowed action. Never iterates other cases."
+    ),
+)
+def run_recovery_agent(
+    case_id: str,
+    db: Session = Depends(get_db),
+):
+    try:
+        result = run_agent_for_case(db, case_id)
+        db.commit()
+        return result
+    except ValueError as exc:
+        db.rollback()
+        code = str(exc)
+        if code == "case_not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Recovery case not found.",
+            ) from exc
+        if code == "case_terminal":
+            raise HTTPException(
+                status_code=400,
+                detail="Case is already closed or recovered.",
+            ) from exc
+        if code == "agent_mode_disabled":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Run Agent is available only when recovery mode is "
+                    "set to run the agent per case."
+                ),
+            ) from exc
+        if code == "action_already_terminal":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This recovery action already finished and cannot "
+                    "execute twice."
+                ),
+            ) from exc
+        if code == "action_in_progress":
+            raise HTTPException(
+                status_code=409,
+                detail="The agent is already running for this case.",
             ) from exc
         raise HTTPException(status_code=400, detail=code) from exc
     except Exception:

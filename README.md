@@ -57,7 +57,7 @@ Merchants see amount at risk, in-recovery vs recovered vs escalated, a batch rec
 - FastAPI recovery pipeline: ingest → case → diagnosis → strategy → safety → action → communication
 - Razorpay **Test** integration: orders, payment links, webhook signature verification
 - **Webhook authority**: the frontend never sets Recovered
-- Merchant policy: **Manual** or **Run agent on every case**, with rupee caps
+- Merchant policy: **Manual** or **Run agent on every case** (per-case Run Agent button), with rupee caps
 - Demo tools: create demo events, batch ingest, demo inventory, demo reset (demo rows only)
 - Customer pay page token (`/recover/:token`) as a real pay-as-customer path
 
@@ -301,7 +301,7 @@ Browser (Vite / Vercel)
 FastAPI
         ├── /api/events/payment          demo / simulated failure
         ├── /api/webhooks/razorpay       live provider events (signed)
-        ├── /api/recovery/cases          cases, timeline, execute action
+        ├── /api/recovery/cases          cases, timeline, execute, run-agent
         ├── /api/dashboard/*             KPIs
         ├── /api/integrations/*          Razorpay credentials + policy
         └── /api/customer/recovery/:token  customer checkout config
@@ -328,7 +328,7 @@ flowchart TD
   H -->|Allowed| J[Pending recovery action]
   J --> K{Settings}
   K -->|Manual| L[Merchant runs action]
-  K -->|Run agent on every case + under ₹ cap| N[Agent executes if Safety allows]
+  K -->|Agent mode + Run Agent click| N[Agent executes one selected action if Safety allows]
   L --> O[Retry / send link / reminder]
   N --> O
   O --> P[Gemini drafts message around real link]
@@ -380,7 +380,7 @@ sequenceDiagram
 | **Operations** | In recovery / recovered / escalated / stopped |
 | **Connect payments** | Razorpay Test keys + webhook URL |
 | **Demo health** | Demo readiness + reset demo data only |
-| **Settings** | Manual or Run agent on every case + rupee caps |
+| **Settings** | Manual or per-case Run Agent + rupee caps |
 | **Batch demo** | Many failures → measured recovery across the batch |
 | **Customer pay** | `/recover/:token` — pay as the customer |
 
@@ -390,10 +390,20 @@ sequenceDiagram
 
 ### Settings (how the desk runs)
 
+The agent is explicitly triggered per recovery case during the demo, preventing uncontrolled batch execution and allowing every decision and action to be inspected independently.
+
+```
+Settings → select Agent mode → save policy
+→ Run Agent appears on eligible cases
+→ user triggers agent for one case
+→ AI analysis → strategy selection → Safety Engine
+→ one action executed → verified payment result → audit trail
+```
+
 | Mode | What happens |
 | --- | --- |
-| **Manual** (default) | You click Execute. Timeline shows **Manual**. |
-| **Run agent on every case** | After Save, the agent processes every *allowed* open case in the background. Timeline shows **Agent**. Over cap / high-value / Safety block / escalated are skipped. |
+| **Manual** (default) | You click Execute. Timeline shows **Manual**. Saving policy does not run cases. |
+| **Run agent on every case** | Saving only stores the mode. Each eligible case shows **Run Agent**. One click = one case. Timeline shows **Agent**. Over cap / high-value / Safety block / escalated are skipped. |
 
 Neither mode sets Recovered. Customer still pays; webhook still confirms.
 
@@ -543,7 +553,7 @@ Everything else we hit while shipping — still real, but not the core money-int
 
 **Problem:** Auto-run on large amounts is unsafe.
 
-**Fix:** Settings default **Manual**. **Run agent on every case** only after you save that mode. Safety must allow the action, amount under the agent cap (default **₹5,000**). High-value (default **₹10,000**) still needs you. The agent never marks Recovered.
+**Fix:** Settings default **Manual**. **Run agent on every case** only after you save that mode — then click **Run Agent** on a single case. Safety must allow the action, amount under the agent cap (default **₹5,000**). High-value (default **₹10,000**) still needs you. The agent never marks Recovered.
 
 ### 8. CORS / Postgres on Render
 

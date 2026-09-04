@@ -6,7 +6,11 @@ Does not bypass Safety Engine or duplicate recovery pipeline logic.
 
 from __future__ import annotations
 
+import json
 import re
+import threading
+from datetime import datetime
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -16,10 +20,12 @@ from app.schema import (
     RecoveryAction,
     RecoveryResult,
     Communication,
+    AuditLog,
     ActionStatus,
     CaseStatus,
     RecoveryResultStatus,
     ActorType,
+    RecoveryMode,
 )
 from app.services.executor_service import execute_action
 from app.services.orchestrator_service import process_case
@@ -30,8 +36,24 @@ from app.services.payment_gateway_service import (
     get_razorpay_public_key_id,
     is_razorpay_configured,
 )
+from app.services.merchant_settings_service import (
+    classify_approval,
+    get_or_create_settings,
+    merchant_policy_plain,
+)
 
 _URL_PATTERN = re.compile(r"https?://[^\s<>\"']+|\/recover\/[A-Za-z0-9_-]+")
+_agent_run_locks: dict[str, threading.Lock] = {}
+_agent_locks_guard = threading.Lock()
+
+
+def _case_agent_lock(case_id: str) -> threading.Lock:
+    with _agent_locks_guard:
+        lock = _agent_run_locks.get(case_id)
+        if lock is None:
+            lock = threading.Lock()
+            _agent_run_locks[case_id] = lock
+        return lock
 
 
 def _get_case_or_raise(db: Session, case_id: str) -> RecoveryCase:
@@ -168,6 +190,9 @@ def execute_pending_action_for_case(
 
         raise ValueError("no_pending_action")
 
+    if pending.status == ActionStatus.PROCESSING:
+        raise ValueError("action_in_progress")
+
     if pending.requires_approval and pending.status == ActionStatus.PENDING:
         # Merchant hitting this endpoint is the approval. Do not auto-run
         # approval-required actions from any other path.
@@ -182,6 +207,8 @@ def execute_pending_action_for_case(
     except ValueError as exc:
         if str(exc) == "action_already_terminal":
             raise ValueError("action_already_terminal") from exc
+        if str(exc) == "action_in_progress":
+            raise ValueError("action_in_progress") from exc
         raise
     db.flush()
 
@@ -238,6 +265,272 @@ def _is_awaiting_webhook(db: Session, case_id: str) -> bool:
         if (attempt.get("gateway") or {}).get("awaiting_webhook") is True:
             return True
     return False
+
+
+def _write_audit(
+    db: Session,
+    case_id: str,
+    action_type: str,
+    actor: ActorType,
+    details,
+) -> None:
+    if isinstance(details, str):
+        stored = details
+    elif isinstance(details, dict):
+        stored = str(details.get("note") or details.get("message") or "").strip()
+        if not stored:
+            stored = json.dumps(details)
+    else:
+        stored = json.dumps(details) if details is not None else ""
+    db.add(
+        AuditLog(
+            id=str(uuid4()),
+            case_id=case_id,
+            action_type=action_type,
+            actor=actor,
+            details=stored,
+            timestamp=datetime.utcnow(),
+        )
+    )
+
+
+def _response_from_action(
+    case: RecoveryCase,
+    message: str,
+    action: RecoveryAction | None = None,
+    *,
+    blocked: bool = False,
+    agent_skipped: bool = False,
+) -> dict:
+    payload = {
+        "message": message,
+        "case_id": case.id,
+        "case_number": case.case_number,
+        "case_status": _case_status_str(case),
+        "action_id": None,
+        "action_type": None,
+        "action_status": None,
+        "result_text": None,
+        "blocked": blocked,
+        "agent_skipped": agent_skipped,
+    }
+    if action is None:
+        return payload
+    payload["action_id"] = action.id
+    payload["action_type"] = (
+        action.action_type.value
+        if hasattr(action.action_type, "value")
+        else str(action.action_type)
+    )
+    payload["action_status"] = (
+        action.status.value
+        if hasattr(action.status, "value")
+        else str(action.status)
+    )
+    payload["result_text"] = action.result_text
+    payload["blocked"] = blocked or action.status == ActionStatus.BLOCKED
+    payload["agent_skipped"] = agent_skipped
+    return payload
+
+
+def run_agent_for_case(db: Session, case_id: str) -> dict:
+    """
+    One HTTP request = one case. Analyze, select one strategy, Safety,
+    execute that one action if allowed. Does not iterate other cases.
+    """
+    lock = _case_agent_lock(case_id)
+    if not lock.acquire(blocking=False):
+        raise ValueError("action_in_progress")
+
+    try:
+        case = _get_case_or_raise(db, case_id)
+        settings = get_or_create_settings(db)
+        auto_on = (
+            settings.recovery_mode == RecoveryMode.AUTOMATIC
+            and bool(settings.automatic_recovery_enabled)
+        )
+        if not auto_on:
+            raise ValueError("agent_mode_disabled")
+
+        if case.status in [CaseStatus.RECOVERED, CaseStatus.CLOSED]:
+            raise ValueError("case_terminal")
+
+        if case.status == CaseStatus.ESCALATED:
+            return _response_from_action(
+                case,
+                "Case is escalated — automated recovery has stopped.",
+            )
+
+        if _is_awaiting_webhook(db, case_id):
+            return _response_from_action(
+                case,
+                (
+                    "Customer payment is awaiting a verified "
+                    "payment.captured webhook. The agent will not "
+                    "start another recovery action."
+                ),
+            )
+
+        _write_audit(
+            db,
+            case.id,
+            "AGENT_RUN_STARTED",
+            ActorType.AI_AGENT,
+            {
+                "case_id": case.id,
+                "note": "Merchant triggered Run Agent for this case only.",
+            },
+        )
+        db.flush()
+
+        pending = _latest_pending_action(db, case_id)
+        if pending is not None and pending.status == ActionStatus.PROCESSING:
+            raise ValueError("action_in_progress")
+
+        if pending is None:
+            process_case(db, case)
+            db.flush()
+            db.refresh(case)
+            pending = _latest_pending_action(db, case_id)
+
+        if pending is None:
+            loop_action = process_recovery_loop(db, case)
+            db.flush()
+            db.refresh(case)
+            pending = loop_action
+            if pending is not None and pending.status not in (
+                ActionStatus.PENDING,
+                ActionStatus.PROCESSING,
+                ActionStatus.BLOCKED,
+            ):
+                pending = _latest_pending_action(db, case_id)
+
+        if pending is None:
+            blocked = _latest_blocked_action(db, case_id)
+            if blocked is not None:
+                _write_audit(
+                    db,
+                    case.id,
+                    "SAFETY_DECISION",
+                    ActorType.SAFETY_ENGINE,
+                    {
+                        "decision": "BLOCKED",
+                        "action_id": blocked.id,
+                        "note": "Safety Engine blocked the selected action. Not executed.",
+                    },
+                )
+                return _response_from_action(
+                    case,
+                    "Action blocked by Safety Engine.",
+                    blocked,
+                    blocked=True,
+                )
+            return _response_from_action(
+                case,
+                "No eligible recovery action for the agent to run.",
+            )
+
+        if pending.status == ActionStatus.BLOCKED:
+            _write_audit(
+                db,
+                case.id,
+                "SAFETY_DECISION",
+                ActorType.SAFETY_ENGINE,
+                {
+                    "decision": "BLOCKED",
+                    "action_id": pending.id,
+                    "note": "Safety Engine blocked the selected action. Not executed.",
+                },
+            )
+            return _response_from_action(
+                case,
+                "Action blocked by Safety Engine.",
+                pending,
+                blocked=True,
+            )
+
+        decision = classify_approval(db, case, pending)
+        selected = (
+            pending.action_type.value
+            if hasattr(pending.action_type, "value")
+            else str(pending.action_type)
+        )
+        _write_audit(
+            db,
+            case.id,
+            "STRATEGY_SELECTED",
+            ActorType.AI_AGENT,
+            {
+                "strategy": selected,
+                "action_id": pending.id,
+                "note": "Selected strategy only. Other ranked strategies were not executed.",
+            },
+        )
+
+        policy_allows = bool(decision.get("auto_eligible"))
+        if selected in {"HUMAN_ESCALATION", "STOP_RECOVERY"}:
+            # Explicit Run Agent is the merchant triggering the selected step.
+            policy_allows = True
+        if not policy_allows:
+            _write_audit(
+                db,
+                case.id,
+                "SAFETY_DECISION",
+                ActorType.SAFETY_ENGINE,
+                {
+                    "decision": "NOT_EXECUTED",
+                    "reason": decision.get("reason"),
+                    "action_id": pending.id,
+                    "note": "Policy Engine did not allow execution. ACTION_EXECUTED was not written.",
+                },
+            )
+            db.flush()
+            skip_text = merchant_policy_plain(decision) or (
+                "The agent did not send this action. In Settings choose "
+                "Manual, then click Execute on this case."
+            )
+            return _response_from_action(
+                case,
+                skip_text,
+                pending,
+                blocked=bool(decision.get("approval_state") == "BLOCKED"),
+                agent_skipped=True,
+            )
+
+        _write_audit(
+            db,
+            case.id,
+            "SAFETY_DECISION",
+            ActorType.SAFETY_ENGINE,
+            {
+                "decision": "ALLOWED",
+                "action_id": pending.id,
+                "strategy": selected,
+            },
+        )
+        db.flush()
+
+        try:
+            action = execute_action(
+                db,
+                pending,
+                executed_by=ActorType.AI_AGENT,
+            )
+        except ValueError as exc:
+            if str(exc) == "action_already_terminal":
+                raise ValueError("action_already_terminal") from exc
+            if str(exc) == "action_in_progress":
+                raise ValueError("action_in_progress") from exc
+            raise
+
+        db.refresh(case)
+        return _response_from_action(
+            case,
+            "Agent ran for this case only: one selected action executed.",
+            action,
+        )
+    finally:
+        lock.release()
 
 
 def continue_recovery_for_case(

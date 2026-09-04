@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -31,10 +31,6 @@ from app.services.merchant_settings_service import (
     store_razorpay_credentials,
     update_policy,
 )
-from app.services.recovery_mode_service import (
-    run_automatic_recovery_queue_job,
-)
-
 
 router = APIRouter(
     prefix="/api/integrations",
@@ -95,28 +91,16 @@ def get_merchant_settings(db: Session = Depends(get_db)):
 )
 def put_merchant_settings(
     body: MerchantPolicyUpdateRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     try:
         settings = update_policy(db, body.model_dump(exclude_unset=True))
         db.commit()
         payload = public_settings_payload(settings)
-        auto_on = (
-            str(payload.get("recovery_mode") or "").upper() == "AUTOMATIC"
-            and bool(payload.get("automatic_recovery_enabled"))
-        )
-        if auto_on:
-            background_tasks.add_task(run_automatic_recovery_queue_job)
-            payload["automatic_run"] = {
-                "ran": True,
-                "queued": True,
-            }
-        else:
-            payload["automatic_run"] = {
-                "ran": False,
-                "queued": False,
-            }
+        payload["automatic_run"] = {
+            "ran": False,
+            "queued": False,
+        }
         return payload
     except ValueError as exc:
         db.rollback()

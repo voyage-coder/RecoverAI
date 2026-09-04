@@ -7,7 +7,10 @@ import {
 } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import RazorpayTestCheckout from "./RazorpayTestCheckout";
+import RunAgentButton from "./RunAgentButton";
 import { toLabel } from "../utils/labels";
+import { isCaseEligibleForRunAgent } from "../utils/recoveryMode";
+import { policyBannerFromCase } from "../utils/policyCopy";
 
 function upper(value) {
   return String(value || "").toUpperCase();
@@ -20,11 +23,14 @@ function RecoveryOperationsPanel({
   paymentDetails,
   operating,
   operationMessage,
+  operationWarning,
   operationError,
   onExecutePending,
   onContinueRecovery,
   onCheckoutComplete,
   onRefresh,
+  agentMode = false,
+  onRunAgent,
 }) {
   const actions = timeline?.actions || [];
   const pendingAction = actions.find((item) =>
@@ -54,6 +60,10 @@ function RecoveryOperationsPanel({
 
   const availableOperations = useMemo(() => {
     const ops = [];
+
+    if (agentMode) {
+      return ops;
+    }
 
     if (pendingAction && !isTerminal) {
       ops.push({
@@ -93,7 +103,15 @@ function RecoveryOperationsPanel({
     latestExecuted,
     onExecutePending,
     onContinueRecovery,
+    agentMode,
   ]);
+
+  const showRunAgent =
+    agentMode &&
+    isCaseEligibleForRunAgent(recoveryCase, {
+      awaitingCustomerPayment: awaitingWebhook,
+    });
+  const policyBanner = policyBannerFromCase(recoveryCase);
 
   return (
     <div className="space-y-5">
@@ -103,8 +121,10 @@ function RecoveryOperationsPanel({
         </p>
         <ul className="mt-2 space-y-1 text-xs text-ink-mute">
           <li>
-            <span className="font-semibold text-ink">You:</span> run the
-            recommended action.
+            <span className="font-semibold text-ink">You:</span>{" "}
+            {agentMode
+              ? "click Run Agent on one case at a time."
+              : "run the recommended action."}
           </li>
           <li>
             <span className="font-semibold text-ink">Customer:</span> pays
@@ -191,6 +211,13 @@ function RecoveryOperationsPanel({
       )}
 
       <div className="flex flex-wrap gap-2">
+        {showRunAgent && (
+          <RunAgentButton
+            running={operating}
+            again={Boolean(latestExecuted)}
+            onClick={onRunAgent}
+          />
+        )}
         {availableOperations.map((op) => (
           <button
             key={op.key}
@@ -230,7 +257,19 @@ function RecoveryOperationsPanel({
         </div>
       )}
 
-      {operationMessage && !operationError && (
+      {operationWarning && !operationError && (
+        <div className="rounded-xl border border-sand/30 bg-sand-soft/50 px-4 py-3 text-sm text-ink">
+          {operationWarning}
+        </div>
+      )}
+
+      {!operationWarning && policyBanner && (
+        <div className="rounded-xl border border-sand/30 bg-sand-soft/50 px-4 py-3 text-sm text-ink">
+          {policyBanner}
+        </div>
+      )}
+
+      {operationMessage && !operationError && !operationWarning && (
         <div className="rounded-xl border border-pine/20 bg-pine-soft/40 px-4 py-3 text-sm text-pine">
           {operationMessage}
         </div>

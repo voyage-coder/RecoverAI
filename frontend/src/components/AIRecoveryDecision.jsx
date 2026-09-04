@@ -1,7 +1,8 @@
 import StatusBadge from "./StatusBadge";
 import { toLabel } from "../utils/labels";
+import { planSafetyVerdict } from "../utils/safetyVerdict";
 
-function AIRecoveryDecision({ decision, loading, error }) {
+function AIRecoveryDecision({ decision, loading, error, timeline }) {
   if (loading) {
     return (
       <p className="text-sm text-ink-mute">Loading recovery decision…</p>
@@ -19,12 +20,16 @@ function AIRecoveryDecision({ decision, loading, error }) {
   }
 
   const explanation = decision.decision_explanation || {};
-  const safety = decision.safety || {};
   const why =
     explanation.summary ||
     decision.root_cause ||
     decision.failure_reason ||
     null;
+  const safety = planSafetyVerdict({ timeline, decision });
+  const plan =
+    toLabel(decision.selected_strategy) ||
+    toLabel(timeline?.case?.selected_strategy) ||
+    "—";
 
   return (
     <div>
@@ -34,7 +39,7 @@ function AIRecoveryDecision({ decision, loading, error }) {
             Why it failed
           </h3>
           <p className="mt-1 text-sm text-ink-mute">
-            What RecoverAI recommends for this payment.
+            Predicted plan, then whether Safety allowed it.
           </p>
         </div>
         {decision.decision_state && (
@@ -65,11 +70,9 @@ function AIRecoveryDecision({ decision, loading, error }) {
         </div>
         <div className="rounded-xl border border-ink/8 bg-mist-soft/50 px-3.5 py-3 sm:col-span-2">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
-            Recommended action
+            Predicted plan
           </p>
-          <p className="mt-1.5 text-sm font-medium text-ink">
-            {toLabel(decision.selected_strategy) || "—"}
-          </p>
+          <p className="mt-1.5 text-sm font-medium text-ink">{plan}</p>
         </div>
         <div className="rounded-xl border border-ink/8 bg-mist-soft/50 px-3.5 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
@@ -81,17 +84,34 @@ function AIRecoveryDecision({ decision, loading, error }) {
         </div>
       </div>
 
+      <div
+        className={`mt-3 rounded-xl border px-3.5 py-3 ${
+          safety.passed === true
+            ? "border-pine/25 bg-pine-soft/40"
+            : safety.passed === false
+              ? "border-clay/25 bg-clay-soft/50"
+              : "border-ink/10 bg-mist-soft/50"
+        }`}
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+          Safety check
+        </p>
+        <p
+          className={`mt-1.5 text-sm font-semibold ${
+            safety.passed === true
+              ? "text-pine"
+              : safety.passed === false
+                ? "text-clay"
+                : "text-ink"
+          }`}
+        >
+          {safety.label}
+        </p>
+        <p className="mt-1 text-sm text-ink-mute">{safety.detail}</p>
+      </div>
+
       {why && (
         <p className="mt-4 text-sm leading-relaxed text-ink-soft">{why}</p>
-      )}
-
-      {safety.decision === "Blocked" && (
-        <p className="mt-3 text-sm font-medium text-clay">
-          Blocked by safety rules
-          {safety.blocked_result_text
-            ? ` — ${safety.blocked_result_text}`
-            : ""}
-        </p>
       )}
     </div>
   );

@@ -200,6 +200,29 @@ def payment_link_expiry_hours(db: Session) -> int:
     return max(1, min(hours, 24 * 30))
 
 
+def merchant_policy_plain(policy: dict) -> str | None:
+    """Short merchant-facing text when the agent is not allowed to execute."""
+    reason = str(policy.get("reason") or "")
+    if policy.get("high_value"):
+        return (
+            "This payment is large, so the agent did not send anything. "
+            "In Settings choose Manual, open this case, then click Execute."
+        )
+    if policy.get("over_auto_cap"):
+        return (
+            "This payment is above the agent rupee limit, so the agent "
+            "did not send anything. In Settings choose Manual, open this "
+            "case, then click Execute."
+        )
+    if "retry limit" in reason.lower():
+        return (
+            "The agent already used the allowed payment retries, so it "
+            "did not charge the original method again. A payment link or "
+            "reminder can still run. Or choose Manual and click Execute."
+        )
+    return None
+
+
 def classify_approval(
     db: Session,
     case: RecoveryCase,
@@ -464,11 +487,17 @@ def merchant_next_step(
             ),
         }
     if policy.get("approval_state") == "AWAITING_APPROVAL":
+        plain = merchant_policy_plain(policy)
         return {
             "code": "APPROVAL_REQUIRED",
-            "label": "Merchant approval required",
+            "label": (
+                "Agent will not send this — you can run it in Manual"
+                if plain
+                else "Merchant approval required"
+            ),
             "detail": (
-                policy.get("reason")
+                plain
+                or policy.get("reason")
                 or "Approve and execute the recommended action in Operations. "
                 "Approval does not mark the payment recovered."
             ),

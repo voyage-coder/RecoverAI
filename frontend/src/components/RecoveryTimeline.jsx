@@ -2,6 +2,7 @@ import { EmptyState } from "./LoadingState";
 import { formatDateTime } from "../utils/format";
 import { toLabel } from "../utils/labels";
 import { VerticalStepItem, VerticalStepList } from "./VerticalStepList";
+import { planSafetyVerdict } from "../utils/safetyVerdict";
 
 function upper(value) {
   return String(value || "").toUpperCase();
@@ -33,7 +34,15 @@ function actionOutcome(status) {
   if (key === "EXECUTED") {
     return { title: "Action succeeded", badge: "Succeeded", tone: "success", status: "SUCCESS" };
   }
-  if (key === "BLOCKED" || key === "FAILED") {
+  if (key === "BLOCKED") {
+    return {
+      title: "Safety blocked — not executed",
+      badge: "Did not pass",
+      tone: "danger",
+      status: "BLOCKED",
+    };
+  }
+  if (key === "FAILED") {
     return { title: "Action failed", badge: "Failed", tone: "danger", status: "FAILED" };
   }
   if (key === "PENDING" || key === "PROCESSING") {
@@ -71,7 +80,7 @@ function buildTimelineEvents(timeline) {
     .forEach((strategy) => {
       events.push({
         id: `strategy-${strategy.id}`,
-        title: "Action selected",
+        title: "Plan chosen",
         description: toLabel(strategy.strategy_type),
         status: "SELECTED",
         badge: "Selected",
@@ -86,12 +95,25 @@ function buildTimelineEvents(timeline) {
   ) {
     events.push({
       id: `strategy-case-${recoveryCase.id}`,
-      title: "Action selected",
+      title: "Plan chosen",
       description: toLabel(recoveryCase.selected_strategy),
       status: "SELECTED",
       badge: "Selected",
       tone: "info",
       timestamp: recoveryCase.created_at,
+    });
+  }
+
+  const safety = planSafetyVerdict({ timeline });
+  if (safety.passed != null) {
+    events.push({
+      id: `safety-${recoveryCase?.id || "case"}`,
+      title: safety.short,
+      description: shortText(safety.detail, 120),
+      status: safety.passed ? "SUCCESS" : "BLOCKED",
+      badge: safety.label,
+      tone: safety.passed ? "success" : "danger",
+      timestamp: safety.at || recoveryCase?.updated_at || recoveryCase?.created_at,
     });
   }
 

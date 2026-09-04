@@ -6,10 +6,15 @@ import LoadingState, {
   ErrorState,
   EmptyState,
 } from "../components/LoadingState";
-import { getRecoveryCases, executePendingRecoveryAction, parseApiError } from "../services/api";
+import { getRecoveryCases, executePendingRecoveryAction, getMerchantSettings, runRecoveryAgent, parseApiError } from "../services/api";
 import { formatINR } from "../utils/format";
 import { toLabel } from "../utils/labels";
 import OriginBadges from "../components/OriginBadges";
+import RunAgentButton from "../components/RunAgentButton";
+import {
+  isAgentRecoveryMode,
+  isCaseEligibleForRunAgent,
+} from "../utils/recoveryMode";
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -49,7 +54,13 @@ function priorityFromRisk(riskLevel) {
   return risk || "Not available";
 }
 
-function OperationsCaseCard({ item, onExecute, executingId }) {
+function OperationsCaseCard({
+  item,
+  onExecute,
+  onRunAgent,
+  executingId,
+  agentMode,
+}) {
   const priority = priorityFromRisk(item.risk_level);
   const canExecute =
     item.approval_state === "AWAITING_APPROVAL" ||
@@ -175,17 +186,26 @@ function OperationsCaseCard({ item, onExecute, executingId }) {
           Review case
           <ArrowUpRight size={12} />
         </Link>
-        {canExecute && !isRecovered && (
-          <button
-            type="button"
-            disabled={executingId === item.id}
-            onClick={() => onExecute(item.id)}
-            className="inline-flex items-center rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-          >
-            {item.approval_state === "AWAITING_APPROVAL"
-              ? "Approve & run"
-              : "Run recommended action"}
-          </button>
+        {agentMode && isCaseEligibleForRunAgent(item) ? (
+          <RunAgentButton
+            className="px-3 py-1.5 text-xs"
+            running={executingId === item.id}
+            onClick={() => onRunAgent(item.id)}
+          />
+        ) : (
+          canExecute &&
+          !isRecovered && (
+            <button
+              type="button"
+              disabled={executingId === item.id}
+              onClick={() => onExecute(item.id)}
+              className="inline-flex items-center rounded-lg bg-ink px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+            >
+              {item.approval_state === "AWAITING_APPROVAL"
+                ? "Approve & run"
+                : "Run recommended action"}
+            </button>
+          )
         )}
       </div>
     </div>
@@ -201,6 +221,7 @@ function Operations() {
   const [sortBy, setSortBy] = useState("newest");
   const [executingId, setExecutingId] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [agentMode, setAgentMode] = useState(false);
 
   const loadCases = useCallback(async ({ soft = false } = {}) => {
     if (soft) setRefreshing(true);
@@ -208,8 +229,12 @@ function Operations() {
     setError(null);
 
     try {
-      const data = await getRecoveryCases();
+      const [data, settings] = await Promise.all([
+        getRecoveryCases(),
+        getMerchantSettings().catch(() => null),
+      ]);
       setCases(data || []);
+      setAgentMode(isAgentRecoveryMode(settings?.recovery_mode));
     } catch (err) {
       console.error(err);
       setError(parseApiError(err));
@@ -264,7 +289,28 @@ function Operations() {
     return list;
   }, [cases, filter, sortBy]);
 
+  const handleRunAgent = async (caseId) => {
+    if (executingId) return;
+    setExecutingId(caseId);
+    setActionError(null);
+    try {
+      const result = await runRecoveryAgent(caseId);
+      if (result?.blocked) {
+        setActionError(result.result_text || "Safety blocked this plan.");
+      } else if (result?.agent_skipped) {
+        setActionError(result.message);
+      }
+      await loadCases({ soft: true });
+    } catch (err) {
+      console.error(err);
+      setActionError(parseApiError(err));
+    } finally {
+      setExecutingId(null);
+    }
+  };
+
   const handleExecute = async (caseId) => {
+    if (executingId) return;
     setExecutingId(caseId);
     setActionError(null);
     try {
@@ -425,7 +471,9 @@ function Operations() {
               key={item.id}
               item={item}
               onExecute={handleExecute}
+              onRunAgent={handleRunAgent}
               executingId={executingId}
+              agentMode={agentMode}
             />
           ))}
         </section>

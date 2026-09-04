@@ -94,16 +94,31 @@ export const acknowledgeProviderEvent = async (payload) => {
   return response.data;
 };
 
+const AGENT_TIMEOUT_MS = 180000;
+
 export const executePendingRecoveryAction = async (caseId) => {
   const response = await api.post(
-    `/api/recovery/cases/${caseId}/execute-pending-action`
+    `/api/recovery/cases/${caseId}/execute-pending-action`,
+    null,
+    { timeout: AGENT_TIMEOUT_MS }
   );
   return response.data;
 };
 
 export const continueRecovery = async (caseId) => {
   const response = await api.post(
-    `/api/recovery/cases/${caseId}/continue-recovery`
+    `/api/recovery/cases/${caseId}/continue-recovery`,
+    null,
+    { timeout: AGENT_TIMEOUT_MS }
+  );
+  return response.data;
+};
+
+export const runRecoveryAgent = async (caseId) => {
+  const response = await api.post(
+    `/api/recovery/cases/${caseId}/run-agent`,
+    null,
+    { timeout: AGENT_TIMEOUT_MS }
   );
   return response.data;
 };
@@ -186,8 +201,11 @@ export const simulateNotification = async (caseId, channel) => {
 };
 
 export function parseApiError(error) {
-  if (error?.code === "ECONNABORTED") {
-    return "The API timed out. Check VITE_API_URL and that the Render backend is live.";
+  if (error?.code === "ECONNABORTED" || /timeout/i.test(String(error?.message || ""))) {
+    return (
+      "This is still running on the server (AI or Razorpay can take a while). " +
+      "Wait about a minute, then refresh. Do not click Run Agent again yet."
+    );
   }
   if (!error?.response) {
     return "Backend unavailable. Set VITE_API_URL to your Render API origin (no /api suffix) and enable CORS.";
@@ -195,6 +213,13 @@ export function parseApiError(error) {
 
   const detail = error.response.data?.detail;
   const status = error.response.status;
+
+  if (status === 409) {
+    return (
+      "This case is already running. Wait, then refresh. " +
+      "Do not click Run Agent or Execute again."
+    );
+  }
 
   if (typeof detail === "string") {
     const lower = detail.toLowerCase();

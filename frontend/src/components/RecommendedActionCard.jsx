@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { AlertTriangle, Loader2, Play } from "lucide-react";
 import StatusBadge from "./StatusBadge";
+import RunAgentButton from "./RunAgentButton";
 import { formatINR } from "../utils/format";
 import { toLabel } from "../utils/labels";
 import { resolveActionStateLabel } from "../utils/customerJourney";
+import { isCaseEligibleForRunAgent } from "../utils/recoveryMode";
+import { policyBannerFromCase } from "../utils/policyCopy";
 
 function upper(value) {
   return String(value || "").toUpperCase();
@@ -16,6 +19,8 @@ function RecommendedActionCard({
   checkoutConfig,
   operating,
   onExecute,
+  agentMode = false,
+  onRunAgent,
 }) {
   const [confirming, setConfirming] = useState(false);
 
@@ -45,6 +50,11 @@ function RecommendedActionCard({
           .includes("AWAITING")
       ));
 
+  const showRunAgent =
+    agentMode &&
+    isCaseEligibleForRunAgent(recoveryCase, { awaitingCustomerPayment });
+  const policyBanner = policyBannerFromCase(recoveryCase);
+
   const strategy =
     pendingAction?.action_type ||
     recoveryCase?.selected_strategy ||
@@ -54,6 +64,21 @@ function RecommendedActionCard({
     action: pendingAction || blockedAction || latestExecuted,
     awaitingCustomerPayment,
   });
+
+  const agentButton = showRunAgent ? (
+    <RunAgentButton
+      className="mt-5"
+      running={operating}
+      again={Boolean(latestExecuted)}
+      onClick={() => onRunAgent?.()}
+    />
+  ) : null;
+
+  const policyNote = policyBanner ? (
+    <p className="mt-4 rounded-xl border border-sand/30 bg-sand-soft/50 px-3 py-2 text-sm text-ink">
+      {policyBanner}
+    </p>
+  ) : null;
 
   if (isTerminal) {
     return (
@@ -116,6 +141,7 @@ function RecommendedActionCard({
             <p className="mt-2 text-xs text-ink-faint">
               Safety decisions cannot be bypassed here.
             </p>
+            {agentButton}
           </div>
         </div>
       </div>
@@ -150,9 +176,12 @@ function RecommendedActionCard({
           Recommended Action
         </p>
         <p className="mt-2 text-sm text-ink-mute">
-          No pending recovery action right now. Use Prepare next action if the
-          customer is not already paying.
+          {agentMode
+            ? "No pending action yet. Run Agent to analyze this case, select one strategy, and execute it if Safety allows."
+            : "No pending recovery action right now. Use Prepare next action if the customer is not already paying."}
         </p>
+        {agentButton}
+        {policyNote}
       </div>
     );
   }
@@ -166,11 +195,17 @@ function RecommendedActionCard({
         {toLabel(strategy)}
       </h4>
       <p className="mt-2 text-sm text-ink-mute">
-        Confirm to run this action. Recovery is confirmed only after the
-        customer pays.
+        {agentMode
+          ? "Run Agent evaluates strategies, selects one, checks Safety, and executes only that action."
+          : "Confirm to run this action. Recovery is confirmed only after the customer pays."}
       </p>
 
-      {!confirming ? (
+      {agentMode ? (
+        <>
+          {agentButton}
+          {policyNote}
+        </>
+      ) : !confirming ? (
         <button
           type="button"
           disabled={operating}
