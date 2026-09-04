@@ -54,8 +54,7 @@ function RecommendedActionCard({
     Boolean(pendingAction) &&
     !isTerminal &&
     (!agentMode ||
-      needsMerchantExecute(recoveryCase, { awaitingCustomerPayment }) ||
-      upper(pendingAction.action_type) === "SEND_PAYMENT_LINK");
+      needsMerchantExecute(recoveryCase, { awaitingCustomerPayment }));
   const showRunAgent =
     agentMode &&
     !showMerchantExecute &&
@@ -202,9 +201,9 @@ function RecommendedActionCard({
       </h4>
       <p className="mt-2 text-sm text-ink-mute">
         {showMerchantExecute && agentMode
-          ? "The agent left this step for you. Send it here — you do not need to switch to Manual."
+          ? "This step is waiting for you. After you execute it, the agent continues any steps it is allowed to run, until it needs you again, the customer pays, or nothing is left."
           : agentMode
-            ? "Run Agent sends every permitted action. It stops when it must wait for the customer, Safety, or a Settings limit on charging the original method."
+            ? "If the agent can run the next step, use Run Agent (or it continues after you execute). If it leaves a step for you, Execute appears instead."
             : "Confirm to run this action. Recovery is confirmed only after the customer pays."}
       </p>
 

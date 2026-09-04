@@ -77,15 +77,8 @@ export function needsMerchantExecute(
   }
   if (awaitingCustomerPayment) return false;
   const approval = upper(item.approval_state);
-  if (
-    approval === "AWAITING_APPROVAL" ||
-    approval === "READY_TO_EXECUTE"
-  ) {
-    return true;
-  }
   return (
-    upper(item.recommended_action) === "SEND_PAYMENT_LINK" &&
-    ["AUTO_ELIGIBLE", "ACTION_WAITING"].includes(approval)
+    approval === "AWAITING_APPROVAL" || approval === "READY_TO_EXECUTE"
   );
 }
 

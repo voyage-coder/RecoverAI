@@ -71,11 +71,7 @@ function OperationsCaseCard({
   const priority = priorityFromRisk(item.risk_level);
   const canExecute =
     item.approval_state === "AWAITING_APPROVAL" ||
-    item.approval_state === "READY_TO_EXECUTE" ||
-    (upper(item.recommended_action) === "SEND_PAYMENT_LINK" &&
-      ["AUTO_ELIGIBLE", "ACTION_WAITING"].includes(
-        upper(item.approval_state)
-      ));
+    item.approval_state === "READY_TO_EXECUTE";
   const isRecovered = upper(item.status) === "RECOVERED";
 
   return (
@@ -335,14 +331,21 @@ function Operations() {
     if (executingId) return;
     setExecutingId(caseId);
     setActionError(null);
+    if (agentMode) markAgentRunStarted(caseId);
     try {
       const result = await executePendingRecoveryAction(caseId);
+      if (agentMode) clearAgentRunStarted(caseId);
       if (result?.blocked) {
         setActionError(result.result_text || "Action blocked by Safety Engine.");
+      } else if (result?.agent_skipped) {
+        setActionError(result.message);
       }
       await loadCases({ soft: true });
     } catch (err) {
       console.error(err);
+      if (agentMode && !shouldKeepAgentRunMark(err)) {
+        clearAgentRunStarted(caseId);
+      }
       setActionError(parseApiError(err));
     } finally {
       setExecutingId(null);

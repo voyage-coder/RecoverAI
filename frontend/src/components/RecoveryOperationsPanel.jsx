@@ -64,21 +64,19 @@ function RecoveryOperationsPanel({
     const waitingOnMerchant = Boolean(
       pendingAction &&
         !isTerminal &&
-        (["AWAITING_APPROVAL", "READY_TO_EXECUTE"].includes(
+        ["AWAITING_APPROVAL", "READY_TO_EXECUTE"].includes(
           upper(recoveryCase?.approval_state)
-        ) ||
-          upper(pendingAction.action_type) === "SEND_PAYMENT_LINK")
+        )
     );
 
     if (pendingAction && !isTerminal && (!agentMode || waitingOnMerchant)) {
       ops.push({
         key: "execute",
-        label:
-          upper(pendingAction.action_type) === "SEND_PAYMENT_LINK"
+        label: waitingOnMerchant
+          ? upper(pendingAction.action_type) === "SEND_PAYMENT_LINK"
             ? "Send payment link"
-            : waitingOnMerchant
-              ? "Approve & run"
-              : "Run recommended action",
+            : "Approve & run"
+          : "Run recommended action",
         description: "Runs the pending action through Safety Engine.",
         primary: true,
         onClick: onExecutePending,
@@ -134,7 +132,7 @@ function RecoveryOperationsPanel({
           <li>
             <span className="font-semibold text-ink">You:</span>{" "}
             {agentMode
-              ? "click Run Agent for allowed steps. If a payment link is waiting for you, click Execute on this case."
+              ? "click Execute when the agent leaves a step for you. If the next step is allowed for the agent, it continues on its own until it needs you again or the customer pays."
               : "run the recommended action."}
           </li>
           <li>

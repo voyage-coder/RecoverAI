@@ -199,11 +199,33 @@ def execute_pending_action_for_case(
         # approval-required actions from any other path.
         pass
 
+    auto_on = _automatic_mode_on(db)
+    lock = None
+    if auto_on:
+        lock = _case_agent_lock(case_id)
+        if not lock.acquire(blocking=False):
+            raise ValueError("action_in_progress")
+
     try:
         action = execute_action(
             db,
             pending,
             executed_by=ActorType.HUMAN_OPERATOR,
+        )
+        if not auto_on:
+            return _response_from_action(
+                _get_case_or_raise(db, case_id),
+                "Recovery action executed through existing pipeline.",
+                action,
+                executed_count=1,
+            )
+        agent_result = _continue_agent_permitted_steps(
+            db,
+            case_id,
+            allow_process_case=False,
+            start_note=(
+                "Agent continued after the merchant executed a step."
+            ),
         )
     except ValueError as exc:
         if str(exc) == "action_already_terminal":
@@ -211,31 +233,47 @@ def execute_pending_action_for_case(
         if str(exc) == "action_in_progress":
             raise ValueError("action_in_progress") from exc
         raise
-    db.flush()
+    finally:
+        if lock is not None:
+            lock.release()
 
-    return {
-        "message": "Recovery action executed through existing pipeline.",
-        "case_id": case.id,
-        "case_number": case.case_number,
-        "case_status": (
-            case.status.value
-            if hasattr(case.status, "value")
-            else str(case.status)
-        ),
-        "action_id": action.id,
-        "action_type": (
-            action.action_type.value
-            if hasattr(action.action_type, "value")
-            else str(action.action_type)
-        ),
-        "action_status": (
+    agent_count = int(agent_result.get("executed_count") or 0)
+    prefix = "You ran this step. "
+    if agent_result.get("agent_skipped"):
+        message = prefix + (
+            agent_result.get("message")
+            or "The next action is waiting for you — click Execute."
+        )
+        merged = dict(agent_result)
+        merged["message"] = message
+        merged["executed_count"] = agent_count + 1
+        return merged
+    if agent_count:
+        message = (
+            prefix
+            + f"The agent then ran {agent_count} allowed action(s)."
+        )
+        if agent_result.get("message"):
+            message = prefix + str(agent_result["message"])
+        merged = dict(agent_result)
+        merged["message"] = message
+        merged["executed_count"] = agent_count + 1
+        return merged
+    merged = dict(agent_result)
+    merged["message"] = prefix + str(
+        agent_result.get("message")
+        or "Waiting for the next permitted step."
+    )
+    if not merged.get("action_id"):
+        merged["action_id"] = action.id
+        merged["action_type"] = _action_type_name(action)
+        merged["action_status"] = (
             action.status.value
             if hasattr(action.status, "value")
             else str(action.status)
-        ),
-        "result_text": action.result_text,
-        "blocked": False,
-    }
+        )
+        merged["result_text"] = action.result_text
+    return merged
 
 
 def _case_status_str(case: RecoveryCase) -> str:
@@ -375,6 +413,265 @@ def _action_type_name(action: RecoveryAction) -> str:
     )
 
 
+def _automatic_mode_on(db: Session) -> bool:
+    settings = get_or_create_settings(db)
+    return (
+        settings.recovery_mode == RecoveryMode.AUTOMATIC
+        and bool(settings.automatic_recovery_enabled)
+    )
+
+
+def _continue_agent_permitted_steps(
+    db: Session,
+    case_id: str,
+    *,
+    allow_process_case: bool,
+    start_note: str,
+) -> dict:
+    """
+    Execute every auto-eligible pending action on this case until the
+    agent must stop (customer payment, merchant step, Safety, or done).
+    Caller must hold the case agent lock.
+    """
+    case = _get_case_or_raise(db, case_id)
+
+    if case.status in [CaseStatus.RECOVERED, CaseStatus.CLOSED]:
+        return _response_from_action(
+            case,
+            "This case is closed or recovered.",
+        )
+    if case.status == CaseStatus.ESCALATED:
+        return _response_from_action(
+            case,
+            "Case is escalated — automated recovery has stopped.",
+        )
+    if _is_awaiting_webhook(db, case_id):
+        return _response_from_action(
+            case,
+            (
+                "Waiting for the customer to pay. Recovered only "
+                "after a verified webhook."
+            ),
+        )
+
+    _write_audit(
+        db,
+        case.id,
+        "AGENT_RUN_STARTED",
+        ActorType.AI_AGENT,
+        {"case_id": case.id, "note": start_note},
+    )
+    db.flush()
+
+    executed_count = 0
+    last_action: RecoveryAction | None = None
+    last_message = "No eligible recovery action for the agent to run."
+
+    for _ in range(_MAX_AGENT_STEPS):
+        case = _get_case_or_raise(db, case_id)
+
+        if case.status in [CaseStatus.RECOVERED, CaseStatus.CLOSED]:
+            last_message = (
+                f"Agent ran {executed_count} allowed action(s). "
+                "This case is closed or recovered."
+            )
+            break
+
+        if case.status == CaseStatus.ESCALATED:
+            last_message = (
+                f"Agent ran {executed_count} allowed action(s). "
+                "Case is escalated — automated recovery has stopped."
+            )
+            break
+
+        if _is_awaiting_webhook(db, case_id):
+            last_message = (
+                f"Agent ran {executed_count} allowed action(s). "
+                "Waiting for the customer to pay. Recovered only "
+                "after a verified webhook."
+            )
+            break
+
+        pending = _ensure_pending_for_agent(
+            db,
+            case,
+            allow_process_case=allow_process_case and executed_count == 0,
+        )
+        if pending is None:
+            blocked = _latest_blocked_action(db, case_id)
+            if blocked is not None and executed_count == 0:
+                _write_audit(
+                    db,
+                    case.id,
+                    "SAFETY_DECISION",
+                    ActorType.SAFETY_ENGINE,
+                    {
+                        "decision": "BLOCKED",
+                        "action_id": blocked.id,
+                        "note": (
+                            "Safety Engine blocked the selected action. "
+                            "Not executed."
+                        ),
+                    },
+                )
+                return _response_from_action(
+                    case,
+                    "Action blocked by Safety Engine.",
+                    blocked,
+                    blocked=True,
+                    executed_count=0,
+                )
+            last_message = (
+                (
+                    f"Agent ran {executed_count} allowed action(s) "
+                    "for this case. All permitted strategies are done."
+                )
+                if executed_count
+                else "All permitted strategies are done."
+            )
+            break
+
+        if pending.status == ActionStatus.PROCESSING:
+            raise ValueError("action_in_progress")
+
+        if pending.status == ActionStatus.BLOCKED:
+            _write_audit(
+                db,
+                case.id,
+                "SAFETY_DECISION",
+                ActorType.SAFETY_ENGINE,
+                {
+                    "decision": "BLOCKED",
+                    "action_id": pending.id,
+                    "note": (
+                        "Safety Engine blocked the selected action. "
+                        "Not executed."
+                    ),
+                },
+            )
+            prefix = (
+                f"Agent ran {executed_count} allowed action(s). "
+                if executed_count
+                else ""
+            )
+            return _response_from_action(
+                case,
+                prefix + "Action blocked by Safety Engine.",
+                pending,
+                blocked=True,
+                executed_count=executed_count,
+            )
+
+        decision = classify_approval(db, case, pending)
+        selected = _action_type_name(pending)
+        _write_audit(
+            db,
+            case.id,
+            "STRATEGY_SELECTED",
+            ActorType.AI_AGENT,
+            {
+                "strategy": selected,
+                "action_id": pending.id,
+                "note": "Next permitted strategy for this agent run.",
+            },
+        )
+
+        if not bool(decision.get("auto_eligible")):
+            _write_audit(
+                db,
+                case.id,
+                "SAFETY_DECISION",
+                ActorType.SAFETY_ENGINE,
+                {
+                    "decision": "NOT_EXECUTED",
+                    "reason": decision.get("reason"),
+                    "action_id": pending.id,
+                    "note": (
+                        "Left for the merchant. Click Execute on this case."
+                    ),
+                },
+            )
+            db.flush()
+            skip_text = merchant_policy_plain(decision) or (
+                "The agent left this step for you. Click Execute on this case."
+            )
+            if executed_count:
+                skip_text = (
+                    f"Agent ran {executed_count} allowed action(s). "
+                    + skip_text
+                )
+            return _response_from_action(
+                case,
+                skip_text,
+                pending,
+                blocked=bool(decision.get("approval_state") == "BLOCKED"),
+                agent_skipped=True,
+                executed_count=executed_count,
+            )
+
+        _write_audit(
+            db,
+            case.id,
+            "SAFETY_DECISION",
+            ActorType.SAFETY_ENGINE,
+            {
+                "decision": "ALLOWED",
+                "action_id": pending.id,
+                "strategy": selected,
+            },
+        )
+        db.flush()
+
+        try:
+            action = execute_action(
+                db,
+                pending,
+                executed_by=ActorType.AI_AGENT,
+            )
+        except ValueError as exc:
+            if str(exc) == "action_already_terminal":
+                raise ValueError("action_already_terminal") from exc
+            if str(exc) == "action_in_progress":
+                raise ValueError("action_in_progress") from exc
+            raise
+
+        executed_count += 1
+        last_action = action
+        last_message = (
+            f"Agent ran {executed_count} allowed action(s) for this case."
+        )
+        if selected in {"HUMAN_ESCALATION", "STOP_RECOVERY"}:
+            last_message = (
+                f"Agent ran {executed_count} allowed action(s). "
+                "Recovery was escalated or stopped."
+            )
+            break
+    else:
+        last_message = (
+            f"Agent ran {executed_count} allowed action(s) "
+            "for this case (step limit for one click). Refresh the case."
+        )
+
+    case = _get_case_or_raise(db, case_id)
+    _write_audit(
+        db,
+        case.id,
+        "AGENT_RUN_COMPLETED",
+        ActorType.AI_AGENT,
+        {
+            "executed_count": executed_count,
+            "note": last_message,
+        },
+    )
+    db.flush()
+    return _response_from_action(
+        case,
+        last_message,
+        last_action,
+        executed_count=executed_count,
+    )
+
+
 def run_agent_for_case(db: Session, case_id: str) -> dict:
     """
     One HTTP request = one case. Analyze, then execute every action that
@@ -386,264 +683,19 @@ def run_agent_for_case(db: Session, case_id: str) -> dict:
         raise ValueError("action_in_progress")
 
     try:
-        case = _get_case_or_raise(db, case_id)
-        settings = get_or_create_settings(db)
-        auto_on = (
-            settings.recovery_mode == RecoveryMode.AUTOMATIC
-            and bool(settings.automatic_recovery_enabled)
-        )
-        if not auto_on:
+        if not _automatic_mode_on(db):
             raise ValueError("agent_mode_disabled")
-
+        case = _get_case_or_raise(db, case_id)
         if case.status in [CaseStatus.RECOVERED, CaseStatus.CLOSED]:
             raise ValueError("case_terminal")
-
-        if case.status == CaseStatus.ESCALATED:
-            return _response_from_action(
-                case,
-                "Case is escalated — automated recovery has stopped.",
-            )
-
-        if _is_awaiting_webhook(db, case_id):
-            return _response_from_action(
-                case,
-                (
-                    "Customer payment is awaiting a verified "
-                    "payment.captured webhook. The agent will not "
-                    "start another recovery action."
-                ),
-            )
-
-        _write_audit(
+        return _continue_agent_permitted_steps(
             db,
-            case.id,
-            "AGENT_RUN_STARTED",
-            ActorType.AI_AGENT,
-            {
-                "case_id": case.id,
-                "note": (
-                    "Merchant triggered Run Agent for this case. "
-                    "The agent executes every permitted action, then stops."
-                ),
-            },
-        )
-        db.flush()
-
-        executed_count = 0
-        last_action: RecoveryAction | None = None
-        last_message = "No eligible recovery action for the agent to run."
-
-        for _ in range(_MAX_AGENT_STEPS):
-            case = _get_case_or_raise(db, case_id)
-
-            if case.status in [CaseStatus.RECOVERED, CaseStatus.CLOSED]:
-                last_message = (
-                    f"Agent ran {executed_count} allowed action(s). "
-                    "This case is closed or recovered."
-                )
-                break
-
-            if case.status == CaseStatus.ESCALATED:
-                last_message = (
-                    f"Agent ran {executed_count} allowed action(s). "
-                    "Case is escalated — automated recovery has stopped."
-                )
-                break
-
-            if _is_awaiting_webhook(db, case_id):
-                last_message = (
-                    f"Agent ran {executed_count} allowed action(s). "
-                    "Waiting for the customer to pay. Recovered only "
-                    "after a verified webhook."
-                )
-                break
-
-            pending = _ensure_pending_for_agent(
-                db,
-                case,
-                allow_process_case=executed_count == 0,
-            )
-            if pending is None:
-                blocked = _latest_blocked_action(db, case_id)
-                if blocked is not None and executed_count == 0:
-                    _write_audit(
-                        db,
-                        case.id,
-                        "SAFETY_DECISION",
-                        ActorType.SAFETY_ENGINE,
-                        {
-                            "decision": "BLOCKED",
-                            "action_id": blocked.id,
-                            "note": (
-                                "Safety Engine blocked the selected action. "
-                                "Not executed."
-                            ),
-                        },
-                    )
-                    return _response_from_action(
-                        case,
-                        "Action blocked by Safety Engine.",
-                        blocked,
-                        blocked=True,
-                        executed_count=0,
-                    )
-                last_message = (
-                    (
-                        f"Agent ran {executed_count} allowed action(s) "
-                        "for this case. Nothing else was permitted."
-                    )
-                    if executed_count
-                    else "No eligible recovery action for the agent to run."
-                )
-                break
-
-            if pending.status == ActionStatus.PROCESSING:
-                raise ValueError("action_in_progress")
-
-            if pending.status == ActionStatus.BLOCKED:
-                _write_audit(
-                    db,
-                    case.id,
-                    "SAFETY_DECISION",
-                    ActorType.SAFETY_ENGINE,
-                    {
-                        "decision": "BLOCKED",
-                        "action_id": pending.id,
-                        "note": (
-                            "Safety Engine blocked the selected action. "
-                            "Not executed."
-                        ),
-                    },
-                )
-                prefix = (
-                    f"Agent ran {executed_count} allowed action(s). "
-                    if executed_count
-                    else ""
-                )
-                return _response_from_action(
-                    case,
-                    prefix + "Action blocked by Safety Engine.",
-                    pending,
-                    blocked=True,
-                    executed_count=executed_count,
-                )
-
-            decision = classify_approval(db, case, pending)
-            selected = _action_type_name(pending)
-            _write_audit(
-                db,
-                case.id,
-                "STRATEGY_SELECTED",
-                ActorType.AI_AGENT,
-                {
-                    "strategy": selected,
-                    "action_id": pending.id,
-                    "note": "Next permitted strategy for this agent run.",
-                },
-            )
-
-            policy_allows = bool(decision.get("auto_eligible"))
-            if selected in {"HUMAN_ESCALATION", "STOP_RECOVERY"}:
-                policy_allows = True
-            if not policy_allows:
-                _write_audit(
-                    db,
-                    case.id,
-                    "SAFETY_DECISION",
-                    ActorType.SAFETY_ENGINE,
-                    {
-                        "decision": "NOT_EXECUTED",
-                        "reason": decision.get("reason"),
-                        "action_id": pending.id,
-                        "note": (
-                            "Policy Engine did not allow execution. "
-                            "ACTION_EXECUTED was not written."
-                        ),
-                    },
-                )
-                db.flush()
-                skip_text = merchant_policy_plain(decision) or (
-                    "The agent did not send this action. Click Execute on "
-                    "this case to send it. You do not need to switch to Manual."
-                )
-                if executed_count:
-                    skip_text = (
-                        f"Agent ran {executed_count} allowed action(s). "
-                        + skip_text
-                    )
-                return _response_from_action(
-                    case,
-                    skip_text,
-                    pending,
-                    blocked=bool(
-                        decision.get("approval_state") == "BLOCKED"
-                    ),
-                    agent_skipped=True,
-                    executed_count=executed_count,
-                )
-
-            _write_audit(
-                db,
-                case.id,
-                "SAFETY_DECISION",
-                ActorType.SAFETY_ENGINE,
-                {
-                    "decision": "ALLOWED",
-                    "action_id": pending.id,
-                    "strategy": selected,
-                },
-            )
-            db.flush()
-
-            try:
-                action = execute_action(
-                    db,
-                    pending,
-                    executed_by=ActorType.AI_AGENT,
-                )
-            except ValueError as exc:
-                if str(exc) == "action_already_terminal":
-                    raise ValueError("action_already_terminal") from exc
-                if str(exc) == "action_in_progress":
-                    raise ValueError("action_in_progress") from exc
-                raise
-
-            executed_count += 1
-            last_action = action
-            last_message = (
-                f"Agent ran {executed_count} allowed action(s) "
-                "for this case."
-            )
-            if selected in {"HUMAN_ESCALATION", "STOP_RECOVERY"}:
-                last_message = (
-                    f"Agent ran {executed_count} allowed action(s). "
-                    "Recovery was escalated or stopped."
-                )
-                break
-
-        else:
-            last_message = (
-                f"Agent ran {executed_count} allowed action(s) "
-                "for this case (step limit for one click). Refresh the case."
-            )
-
-        case = _get_case_or_raise(db, case_id)
-        _write_audit(
-            db,
-            case.id,
-            "AGENT_RUN_COMPLETED",
-            ActorType.AI_AGENT,
-            {
-                "executed_count": executed_count,
-                "note": last_message,
-            },
-        )
-        db.flush()
-        return _response_from_action(
-            case,
-            last_message,
-            last_action,
-            executed_count=executed_count,
+            case_id,
+            allow_process_case=True,
+            start_note=(
+                "Merchant triggered Run Agent for this case. "
+                "The agent executes every permitted action, then stops."
+            ),
         )
     finally:
         lock.release()
